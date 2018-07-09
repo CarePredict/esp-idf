@@ -907,6 +907,7 @@ static void tcpip_adapter_dhcpc_cb(struct netif *netif)
                 evt.event_info.got_ip.ip_changed = true;
             }
 
+			memcpy(&evt.event_info.CustomGotIpEventDhcpInfo, netif->dhcp, sizeof(struct dhcp));
             memcpy(&evt.event_info.got_ip.ip_info, ip_info, sizeof(tcpip_adapter_ip_info_t));
             memcpy(ip_info_old, ip_info, sizeof(tcpip_adapter_ip_info_t));
             ESP_LOGD(TAG, "if%d ip changed=%d", tcpip_if, evt.event_info.got_ip.ip_changed);
