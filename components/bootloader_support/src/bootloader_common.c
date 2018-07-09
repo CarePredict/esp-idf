@@ -21,6 +21,7 @@
 #include "rom/crc.h"
 #include "rom/ets_sys.h"
 #include "rom/gpio.h"
+#include "rom/BootloaderVrsnControl.h"
 #include "esp_flash_data_types.h"
 #include "esp_secure_boot.h"
 #include "esp_flash_partitions.h"
@@ -42,19 +43,44 @@ bool bootloader_common_ota_select_valid(const esp_ota_select_entry_t *s)
 
 esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, uint32_t delay_sec)
 {
-    gpio_pad_select_gpio(num_pin);
+	/**************< CP Custom section >*************/
+	if (RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic != STRUCT_INTEGRITY_MAGIC_NUM) {
+		memset((uint8_t*) RTC_NO_INIT_DATA_STRUCT, 0, sizeof(RTC_NO_INIT_DATA_STRUCT_t));
+		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d--garbage data! Reseting to 0", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
+		RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory = 0;
+		RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic = STRUCT_INTEGRITY_MAGIC_NUM;
+	}
+
+	RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory++;
+	ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
+
+	if (RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory > MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT) {
+		ESP_LOGE(TAG, "Forcing Factory-> DUE to consecutive reset: %d, MAx val: %d", RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory, MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT);
+		return GPIO_LONG_HOLD;
+	}
+	/**************< CP Custom section Ends>*************/
+
+	gpio_pad_select_gpio(num_pin);
     if (GPIO_PIN_MUX_REG[num_pin]) {
         PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[num_pin]);
     }
     gpio_pad_pullup(num_pin);
     uint32_t tm_start = esp_log_early_timestamp();
+	uint32_t tm_SecCntr = tm_start;
     if (GPIO_INPUT_GET(num_pin) == 1) {
         return GPIO_NOT_HOLD;
     }
+	int cnt = 0;
     do {
         if (GPIO_INPUT_GET(num_pin) != 0) {
             return GPIO_SHORT_HOLD;
         }
+
+		if (((esp_log_early_timestamp() - tm_SecCntr) / 1000L) >= 1) {
+			tm_SecCntr = esp_log_early_timestamp();
+			cnt++;
+			ESP_LOGE(TAG, "ForceFactoryAppButton Held for: %d Sec", cnt);
+		}
     } while (delay_sec > ((esp_log_early_timestamp() - tm_start) / 1000L));
     return GPIO_LONG_HOLD;
 }
