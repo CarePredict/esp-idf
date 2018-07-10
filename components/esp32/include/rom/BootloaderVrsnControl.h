@@ -10,7 +10,7 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	6 /*Updated at: July 03, 2018*/  //DHCP info out to application layer implemented
+#define MOTHER_SHIP_ESP_IDF_VRSN0	7 /*Updated at: July 10, 2018*/  //esp-idf 3.1
 
 #define MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT	100
 #define STRUCT_INTEGRITY_MAGIC_NUM			15
