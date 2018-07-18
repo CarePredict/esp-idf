@@ -58,6 +58,11 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, ui
 		ESP_LOGE(TAG, "Forcing Factory-> DUE to consecutive reset: %d, MAx val: %d", RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory, MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT);
 		return GPIO_LONG_HOLD;
 	}
+
+	if (rtc_get_reset_reason(0) == 5) { //DEEPSLEEP_RESET
+		return GPIO_SHORT_HOLD;
+	}
+
 	/**************< CP Custom section Ends>*************/
 
 	gpio_pad_select_gpio(num_pin);
