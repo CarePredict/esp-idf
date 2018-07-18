@@ -18,6 +18,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "rom/spi_flash.h"
+#include "rom/rtc.h"
 #include "rom/crc.h"
 #include "rom/ets_sys.h"
 #include "rom/gpio.h"
