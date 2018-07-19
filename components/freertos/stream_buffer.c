@@ -519,7 +519,7 @@ TimeOut_t xTimeOut;
 		{
 			/* Wait until the required number of bytes are free in the message
 			buffer. */
-			taskENTER_CRITICAL(&stream_lock);
+			portENTER_CRITICAL(&stream_lock);
 			{
 				xSpace = xStreamBufferSpacesAvailable( pxStreamBuffer );
 
@@ -534,11 +534,11 @@ TimeOut_t xTimeOut;
 				}
 				else
 				{
-					taskEXIT_CRITICAL(&stream_lock);
+					portEXIT_CRITICAL(&stream_lock);
 					break;
 				}
 			}
-			taskEXIT_CRITICAL(&stream_lock);
+			portEXIT_CRITICAL(&stream_lock);
 
 			traceBLOCKING_ON_STREAM_BUFFER_SEND( xStreamBuffer );
 			( void ) xTaskNotifyWait( ( uint32_t ) 0, UINT32_MAX, NULL, xTicksToWait );
@@ -718,7 +718,7 @@ size_t xReceivedLength = 0, xBytesAvailable, xBytesToStoreMessageLength;
 	{
 		/* Checking if there is data and clearing the notification state must be
 		performed atomically. */
-		taskENTER_CRITICAL(&stream_lock);
+		portENTER_CRITICAL(&stream_lock);
 		{
 			xBytesAvailable = prvBytesInBuffer( pxStreamBuffer );
 
@@ -741,7 +741,7 @@ size_t xReceivedLength = 0, xBytesAvailable, xBytesToStoreMessageLength;
 				mtCOVERAGE_TEST_MARKER();
 			}
 		}
-		taskEXIT_CRITICAL(&stream_lock);
+		portEXIT_CRITICAL(&stream_lock);
 
 		if( xBytesAvailable <= xBytesToStoreMessageLength )
 		{
