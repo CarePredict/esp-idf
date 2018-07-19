@@ -62,6 +62,16 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, ui
 
 	if (rtc_get_reset_reason(0) == 5) { //DEEPSLEEP_RESET
 		return GPIO_SHORT_HOLD;
+	} else {
+		uint32_t Local_2_sec_delay = 2;
+		uint32_t LocalTmStrts = esp_log_early_timestamp();
+		bool once = false;
+		do {
+			if (once == false) {
+				once = true;
+				ESP_LOGE(TAG, "Wating 2 sec to allow user to press the Factory buton if necessary");
+			}
+		} while (Local_2_sec_delay > ((esp_log_early_timestamp() - LocalTmStrts) / 1000L));
 	}
 
 	/**************< CP Custom section Ends>*************/
