@@ -1,6 +1,9 @@
+// Copyright 2016-2018 Espressif Systems (Shanghai) PTE LTD
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -98,12 +101,12 @@ In ADC2, there're two locks used for different cases:
 adc2_spinlock should be acquired first, then adc2_wifi_lock or rtc_spinlock.
 */
 //prevent ADC2 being used by wifi and other tasks at the same time.
-static _lock_t adc2_wifi_lock = NULL;
+static _lock_t adc2_wifi_lock;
 //prevent ADC2 being used by tasks (regardless of WIFI)
 portMUX_TYPE adc2_spinlock = portMUX_INITIALIZER_UNLOCKED;
 
 //prevent ADC1 being used by I2S dma and other tasks at the same time.
-static _lock_t adc1_i2s_lock = NULL;
+static _lock_t adc1_i2s_lock;
 
 typedef struct {
     TimerHandle_t timer;
@@ -999,6 +1002,16 @@ esp_err_t touch_pad_filter_delete()
         s_touch_pad_filter = NULL;
     }
     xSemaphoreGive(rtc_touch_mux);
+    return ESP_OK;
+}
+
+esp_err_t touch_pad_get_wakeup_status(touch_pad_t *pad_num)
+{
+    uint32_t touch_mask = SENS.sar_touch_ctrl2.touch_meas_en;
+    if(touch_mask == 0) {
+        return ESP_FAIL;
+    }
+    *pad_num = touch_pad_num_wrap((touch_pad_t)(__builtin_ffs(touch_mask) - 1));
     return ESP_OK;
 }
 

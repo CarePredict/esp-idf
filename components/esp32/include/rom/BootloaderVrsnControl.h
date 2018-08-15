@@ -10,7 +10,7 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	8 /*Updated at: July 18, 2018*/  //check factory trigger condition othe than DEEP_SLEEP_RST
+#define MOTHER_SHIP_ESP_IDF_VRSN0	9 /*Updated at: Aug 8, 2018*/ //merged with latest 3.1
 
 #define MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT	100
 #define STRUCT_INTEGRITY_MAGIC_NUM			15
