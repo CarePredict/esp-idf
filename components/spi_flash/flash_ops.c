@@ -199,7 +199,7 @@ esp_err_t IRAM_ATTR spi_flash_erase_sector(size_t sec)
 
 esp_err_t IRAM_ATTR spi_flash_erase_range(uint32_t start_addr, uint32_t size)
 {
-    CHECK_WRITE_ADDRESS(start_addr, size);
+    //CHECK_WRITE_ADDRESS(start_addr, size);
     if (start_addr % SPI_FLASH_SEC_SIZE != 0) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -311,7 +311,7 @@ static IRAM_ATTR esp_rom_spiflash_result_t spi_flash_write_inner(uint32_t target
 
 esp_err_t IRAM_ATTR spi_flash_write(size_t dst, const void *srcv, size_t size)
 {
-    CHECK_WRITE_ADDRESS(dst, size);
+    //CHECK_WRITE_ADDRESS(dst, size);
     // Out of bound writes are checked in ROM code, but we can give better
     // error code here
     if (dst + size > g_rom_flashchip.chip_size) {
