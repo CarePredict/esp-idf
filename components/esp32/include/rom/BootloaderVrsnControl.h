@@ -12,6 +12,8 @@
 
 #define MOTHER_SHIP_ESP_IDF_VRSN0	12 /*Updated at: Aug 30, 2018*/
 
+#define BOOT_LOADER_VERSION	1 //__MK__: updated August 30, 2018
+
 #define MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT	100
 #define STRUCT_INTEGRITY_MAGIC_NUM			15
 
