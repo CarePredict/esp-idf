@@ -45,13 +45,7 @@ bool bootloader_common_ota_select_valid(const esp_ota_select_entry_t *s)
 esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, uint32_t delay_sec)
 {
 	/**************< CP Custom section >*************/
-	ESP_LOGE(TAG, "Reset Reason: %d", rtc_get_reset_reason(0));
-	if (RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic != STRUCT_INTEGRITY_MAGIC_NUM) {
-		memset((uint8_t*) RTC_NO_INIT_DATA_STRUCT, 0, sizeof(RTC_NO_INIT_DATA_STRUCT_t));
-		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d--garbage data! Reseting to 0", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
-		RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory = 0;
-		RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic = STRUCT_INTEGRITY_MAGIC_NUM;
-	}
+	ESP_LOGE(TAG, "Reset Reason: %d---------", rtc_get_reset_reason(0));
 
 	if (rtc_get_reset_reason(0) == 5) { //DEEPSLEEP_RESET
 		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
@@ -68,13 +62,22 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, ui
 		} while (Local_2_sec_delay > ((esp_log_early_timestamp() - LocalTmStrts) / 1000L));
 	}
 
+	if ((RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic != STRUCT_INTEGRITY_MAGIC_NUM)|| (RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory < 0) || (rtc_get_reset_reason(0) == 1)) {
+		memset((uint8_t*) RTC_NO_INIT_DATA_STRUCT, 0, sizeof(RTC_NO_INIT_DATA_STRUCT_t));
+		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d--garbage data! Reseting to 0", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
+		RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory = 0;
+		RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic = STRUCT_INTEGRITY_MAGIC_NUM;
+	}
 
 	RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory++;
 	ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
 
-	if (RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory > MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT) {
-		ESP_LOGE(TAG, "Forcing Factory-> DUE to consecutive reset: %d, MAx val: %d", RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory, MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT);
-		return GPIO_LONG_HOLD;
+	if(RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory > 0){
+		if (RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory > MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT) {
+			ESP_LOGE(TAG, "Forcing Factory-> DUE to consecutive reset: %d, MAx val: %d", RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory, MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT);
+			RTC_NO_INIT_DATA_STRUCT->RFU_Data2_1 = RST_COUNTER_TRIGGER;
+			return GPIO_LONG_HOLD;
+		}
 	}
 
 	/**************< CP Custom section Ends>*************/
@@ -101,6 +104,9 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, ui
 			ESP_LOGE(TAG, "ForceFactoryAppButton Held for: %d Sec", cnt);
 		}
     } while (delay_sec > ((esp_log_early_timestamp() - tm_start) / 1000L));
+
+    RTC_NO_INIT_DATA_STRUCT->RFU_Data2_1 = BUTTON_PUSH;
+
     return GPIO_LONG_HOLD;
 }
 

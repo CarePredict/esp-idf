@@ -10,16 +10,23 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	11 /*Updated at: Aug 23, 2018*/
+#define MOTHER_SHIP_ESP_IDF_VRSN0	12 /*Updated at: Aug 30, 2018*/
 
 #define MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT	100
 #define STRUCT_INTEGRITY_MAGIC_NUM			15
 
+typedef enum{
+	RST_RSN_REGULAR = 0,
+	INVALID_PARTITION,
+	BUTTON_PUSH,
+	RST_COUNTER_TRIGGER
+}KICK_FACTORY_REASON_TYPE_t;
+
 typedef struct {
-	uint32_t RstCnt2TriggerFactory;
+	int RstCnt2TriggerFactory;
 
 	uint8_t StructIntegrityMagic;
-	uint8_t RFU_Data2_1;
+	uint8_t RFU_Data2_1;			//factory kick
 	uint8_t RFU_Data2_2;
 	uint8_t RFU_Data2_3;
 
