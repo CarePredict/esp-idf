@@ -30,7 +30,7 @@ typedef struct {
 	uint8_t RFU_Data2_2;
 	uint8_t RFU_Data2_3;
 
-	uint8_t RFU_Data3_1;
+	uint8_t RFU_Data3_1; 			//bootloader version no
 	uint8_t RFU_Data3_2;
 	uint8_t RFU_Data3_3;
 	uint8_t RFU_Data3_4;
