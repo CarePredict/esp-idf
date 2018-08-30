@@ -45,9 +45,9 @@ bool bootloader_common_ota_select_valid(const esp_ota_select_entry_t *s)
 esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, uint32_t delay_sec)
 {
 	/**************< CP Custom section >*************/
-#define BOOT_LOADER_VERSION	1 //__MK__: updated August 30, 2018
 
-	ESP_LOGE(TAG, "Reset Reason: %d", rtc_get_reset_reason(0));
+	RTC_NO_INIT_DATA_STRUCT->RFU_Data3_1 = BOOT_LOADER_VERSION;
+	ESP_LOGE(TAG, "Reset Reason: %d (Boot loader Verson: %d)", rtc_get_reset_reason(0), RTC_NO_INIT_DATA_STRUCT->RFU_Data3_1);
 
 	if (rtc_get_reset_reason(0) == 5) { //DEEPSLEEP_RESET
 		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
@@ -69,7 +69,6 @@ esp_comm_gpio_hold_t bootloader_common_check_long_hold_gpio(uint32_t num_pin, ui
 		ESP_LOGE(TAG, "[%s-%d] RstCnt2TriggerFactory: %d--garbage data! Reseting to 0", __FUNCTION__, __LINE__, RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory);
 		RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory = 0;
 		RTC_NO_INIT_DATA_STRUCT->StructIntegrityMagic = STRUCT_INTEGRITY_MAGIC_NUM;
-		RTC_NO_INIT_DATA_STRUCT->RFU_Data3_1 = BOOT_LOADER_VERSION;
 	}
 
 	RTC_NO_INIT_DATA_STRUCT->RstCnt2TriggerFactory++;
