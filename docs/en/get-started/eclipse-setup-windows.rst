@@ -49,7 +49,7 @@ Project Properties
 
   * Click "Add..." and enter name ``BATCH_BUILD`` and value ``1``.
 
-  * Click "Add..." again, and enter name ``IDF_PATH``. The value should be the full path where ESP-IDF is installed. The IDF_PATH directory should be specified using forwards slashes not backslashes, ie *C:/Users/MyUser/Development/esp-idf*.
+  * Click "Add..." again, and enter name ``IDF_PATH``. The value should be the full path where ESP-IDF is installed. The IDF_PATH directory should be specified using forwards slashes not backslashes, ie *C:/Users/user-name/Development/esp-idf*.
 
   * Edit the PATH environment variable. Delete the existing value and replace it with ``C:\msys32\usr\bin;C:\msys32\mingw32\bin;C:\msys32\opt\xtensa-esp32-elf\bin`` (If you installed msys32 to a different directory then you'll need to change these paths to match).
 
@@ -66,6 +66,12 @@ Navigate to "C/C++ General" -> "Indexer" property page:
 * Check "Enable project specific settings" to enable the rest of the settings on this page.
 
 * Uncheck "Allow heuristic resolution of includes". When this option is enabled Eclipse sometimes fails to find correct header directories.
+
+Navigate to "C/C++ Build" -> "Behavior" property page:
+
+* Check "Enable parallel build" to enable multiple build jobs in parallel.
+
+* Setting the number of jobs slightly higher than the "optimal" may give the absolute fastest builds under Windows, depending on the specific hardware being used.
 
 Building in Eclipse
 -------------------
