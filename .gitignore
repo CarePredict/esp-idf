@@ -60,3 +60,7 @@ tools/windows/tool_setup/Output
 
 test_multi_heap_host
 
+
+tools/kconfig/conf-idf\.exe
+
+tools/kconfig/mconf-idf\.exe
