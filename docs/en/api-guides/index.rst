@@ -6,6 +6,7 @@ API Guides
 
    General Notes <general-notes>
    Build System <build-system>
+   Build System (CMake) <build-system-cmake>
    Error Handling <error-handling>
    Fatal Errors <fatal-errors>
    Deep Sleep Wake Stubs <deep-sleep-stub>
@@ -24,6 +25,6 @@ API Guides
    Console Component <console>
    ROM debug console <romconsole>
    WiFi Driver <wifi>
-   Mesh Stack <mesh>
+   ESP-MESH <mesh>
    BluFi <blufi>
    External SPI-connected RAM <external-ram>

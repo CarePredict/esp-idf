@@ -127,7 +127,7 @@
 #else
 #define SMP_INCLUDED              FALSE
 #define BLE_PRIVACY_SPT           FALSE
-#endif  /* CONFIG_GATTC_ENABLE */
+#endif  /* CONFIG_SMP_ENABLE */
 
 #if (CONFIG_BT_ACL_CONNECTIONS)
 #define MAX_ACL_CONNECTIONS  CONFIG_BT_ACL_CONNECTIONS
@@ -991,7 +991,7 @@
 #endif
 
 #ifndef BTM_BLE_ADV_TX_POWER
-#define BTM_BLE_ADV_TX_POWER {-21, -15, -7, 1, 9}
+#define BTM_BLE_ADV_TX_POWER {-12, -9, -6, -3, 0, 3, 6, 9}
 #endif
 
 

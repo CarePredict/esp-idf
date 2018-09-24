@@ -11,6 +11,7 @@ components/nvs_flash/nvs_partition_generator/nvs_partition_gen.py
 docs/check_doc_warnings.sh
 docs/check_lang_folder_sync.sh
 docs/gen-kconfig-doc.py
+docs/gen-version-specific-includes.py
 tools/ci/apply_bot_filter.py
 tools/ci/build_examples.sh
 tools/ci/check-executable.sh
@@ -18,6 +19,7 @@ tools/ci/checkout_project_ref.py
 tools/ci/get-full-sources.sh
 tools/ci/mirror-submodule-update.sh
 tools/ci/mirror-synchronize.sh
+tools/ci/push_to_github.sh
 tools/ci/test_build_system.sh
 tools/ci/test_configure_ci_environment.sh
 tools/esp_app_trace/apptrace_proc.py
@@ -33,3 +35,13 @@ tools/kconfig/streamline_config.pl
 tools/kconfig/conf
 tools/kconfig/mconf
 tools/windows/eclipse_make.sh
+tools/ci/build_examples_cmake.sh
+tools/ci/test_build_system_cmake.sh
+tools/ci/check_examples_cmake_make.sh
+tools/cmake/convert_to_cmake.py
+tools/cmake/run_cmake_lint.sh
+tools/idf.py
+tools/kconfig_new/confgen.py
+tools/kconfig_new/confserver.py
+tools/kconfig_new/test/test_confserver.py
+tools/windows/tool_setup/build_installer.sh
