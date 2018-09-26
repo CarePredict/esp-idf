@@ -1402,3 +1402,14 @@ portMUX_TYPE *uart_get_selectlock()
 {
     return &uart_selectlock;
 }
+
+/*******************************************************************************************************************************/
+void uart_set_auto_baud_detect(uart_port_t uart_num, uint8_t GlitchFilterValue){
+	UART[uart_num]->auto_baud.en = 1;
+	//UART[uart_num]->auto_baud.glitch_filt = GlitchFilterValue;
+}
+
+void GetUartLowHighPulseWidth(uart_port_t uart_num, uint32_t* LowOut, uint32_t* HighOut){
+	*LowOut = UART[uart_num]->lowpulse.min_cnt;
+	*HighOut = UART[uart_num]->highpulse.min_cnt;
+}
