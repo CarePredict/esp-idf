@@ -34,6 +34,7 @@
 
 #include "tcpip_adapter.h"
 #include "esp_log.h"
+#include "common.h"
 
 static const char* TAG = "event";
 
@@ -137,7 +138,10 @@ static esp_err_t system_event_eth_got_ip_default(system_event_t *event)
 
 static esp_err_t system_event_sta_got_ip_default(system_event_t *event)
 {
-    WIFI_API_CALL_CHECK("esp_wifi_internal_set_sta_ip", esp_wifi_internal_set_sta_ip(), ESP_OK);
+	RtcSlowMemBuff.MemElemets.EspAvtivitiesCnt.EspWifiSuccessfullIpObtainedCnt++;
+	RtcSlowMemBuff.MemElemets.EspAppTiming.EspAppRunTime.EspWifiIpGetTookTimeMs += get_time_mark_ms() - RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt;
+
+	WIFI_API_CALL_CHECK("esp_wifi_internal_set_sta_ip", esp_wifi_internal_set_sta_ip(), ESP_OK);
 
     ESP_LOGI(TAG, "sta ip: " IPSTR ", mask: " IPSTR ", gw: " IPSTR,
            IP2STR(&event->event_info.got_ip.ip_info.ip),
@@ -197,7 +201,11 @@ esp_err_t system_event_sta_stop_handle_default(system_event_t *event)
 
 esp_err_t system_event_sta_connected_handle_default(system_event_t *event)
 {
-    tcpip_adapter_dhcp_status_t status;
+	RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt = get_time_mark_ms();
+	RtcSlowMemBuff.MemElemets.EspAppTiming.EspAppRunTime.EspWifiAssociationTookTimeMs += RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt - RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiAssociationStartsAt;
+	RtcSlowMemBuff.MemElemets.EspAvtivitiesCnt.EspWifiSuccessfullAssociationCnt++;
+
+	tcpip_adapter_dhcp_status_t status;
 
     WIFI_API_CALL_CHECK("esp_wifi_internal_reg_rxcb", esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, (wifi_rxcb_t)tcpip_adapter_sta_input), ESP_OK);
 
@@ -230,6 +238,9 @@ esp_err_t system_event_sta_connected_handle_default(system_event_t *event)
             esp_event_send(&evt);
             ESP_LOGD(TAG, "static ip: ip changed=%d", evt.event_info.got_ip.ip_changed);
         } else {
+			system_event_t evt;
+			evt.event_id = SYSTEM_EVENT_FAILED_TO_GET_STATIC_IP;
+			esp_event_send(&evt);
             ESP_LOGE(TAG, "invalid static ip");
         }
     }
@@ -378,6 +389,12 @@ static esp_err_t esp_system_event_debug(system_event_t *event)
         ESP_LOGD(TAG, "SYSTEM_EVENT_ETH_GOT_IP");
         break;
     }
+
+	case SYSTEM_EVENT_FAILED_TO_GET_STATIC_IP: {
+		ESP_LOGD(TAG, "SYSTEM_EVENT_FAILED_TO_GET_STATIC_IP");
+		break;
+	}
+
 
     default: {
         ESP_LOGW(TAG, "unexpected system event %d!", event->event_id);
