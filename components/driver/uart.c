@@ -1504,6 +1504,17 @@ esp_err_t uart_set_mode(uart_port_t uart_num, uart_mode_t mode)
     return ESP_OK;
 }
 
+/*******************************************************************************************************************************/
+void uart_set_auto_baud_detect(uart_port_t uart_num, uint8_t GlitchFilterValue){
+	UART[uart_num]->auto_baud.en = 1;
+	//UART[uart_num]->auto_baud.glitch_filt = GlitchFilterValue;
+}
+
+void GetUartLowHighPulseWidth(uart_port_t uart_num, uint32_t* LowOut, uint32_t* HighOut){
+	*LowOut = UART[uart_num]->lowpulse.min_cnt;
+	*HighOut = UART[uart_num]->highpulse.min_cnt;
+}
+
 esp_err_t uart_set_rx_timeout(uart_port_t uart_num, const uint8_t tout_thresh) 
 {
     UART_CHECK((uart_num < UART_NUM_MAX), "uart_num error", ESP_ERR_INVALID_ARG);

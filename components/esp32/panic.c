@@ -51,6 +51,7 @@
 #else
 #define APPTRACE_ONPANIC_HOST_FLUSH_TMO   (1000*CONFIG_ESP32_APPTRACE_ONPANIC_HOST_FLUSH_TMO)
 #endif
+
 /*
   Panic handlers; these get called when an unhandled exception occurs or the assembly-level
   task switching / interrupt code runs into an unrecoverable error. The default task stack
@@ -427,11 +428,13 @@ static void putEntry(uint32_t pc, uint32_t sp)
     panicPutHex(sp);
 }
 
+#include "common.h"
 static void doBacktrace(XtExcFrame *frame)
 {
     uint32_t i = 0, pc = frame->pc, sp = frame->a1;
     panicPutStr("\r\nBacktrace:");
     /* Do not check sanity on first entry, PC could be smashed. */
+    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "\r\nBacktrace: 0x%02x 0x%02x", pc, sp);
     putEntry(pc, sp);
     pc = frame->a0;
     while (i++ < 100) {
@@ -441,11 +444,13 @@ static void doBacktrace(XtExcFrame *frame)
         }
         sp = *((uint32_t *) (sp - 0x10 + 4));
         putEntry(pc - 3, sp); // stack frame addresses are return addresses, so subtract 3 to get the CALL address
+        snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "%s 0x%02x 0x%02x", BackTrace, pc - 3, sp);
         pc = *((uint32_t *) (psp - 0x10));
         if (pc < 0x40000000) {
             break;
         }
     }
+
     panicPutStr("\r\n\r\n");
 }
 
