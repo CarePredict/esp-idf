@@ -33,7 +33,7 @@ choice PHY_CLOCK_MODE
     prompt "EMAC clock mode"
     default PHY_CLOCK_GPIO0_IN
     help
-        Select external (input on GPIO0) or internal (output on GPIO0, GPIO16 or GPIO17) clock
+        Select external (input on GPIO0) or internal (output on GPIO16 or GPIO17) clock
 
 
 config PHY_CLOCK_GPIO0_IN
