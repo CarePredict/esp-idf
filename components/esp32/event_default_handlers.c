@@ -138,8 +138,8 @@ static esp_err_t system_event_eth_got_ip_default(system_event_t *event)
 
 static esp_err_t system_event_sta_got_ip_default(system_event_t *event)
 {
-	RtcSlowMemBuff.MemElemets.EspAvtivitiesCnt.EspWifiSuccessfullIpObtainedCnt++;
-	RtcSlowMemBuff.MemElemets.EspAppTiming.EspAppRunTime.EspWifiIpGetTookTimeMs += esp_log_timestamp() - RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt;
+	EspAvtivitiesCnt.EspWifiSuccessfullIpObtainedCnt++;
+	EspAppTiming.EspAppRunTime.EspWifiIpGetTookTimeMs += esp_log_timestamp() - EspAppTiming.AppStartAt.EspWifiIpGetStartsAt;
 
 	WIFI_API_CALL_CHECK("esp_wifi_internal_set_sta_ip", esp_wifi_internal_set_sta_ip(), ESP_OK);
 
@@ -201,9 +201,9 @@ esp_err_t system_event_sta_stop_handle_default(system_event_t *event)
 
 esp_err_t system_event_sta_connected_handle_default(system_event_t *event)
 {
-	RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt = esp_log_timestamp();//get_time_mark_ms();
-	RtcSlowMemBuff.MemElemets.EspAppTiming.EspAppRunTime.EspWifiAssociationTookTimeMs += RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiIpGetStartsAt - RtcSlowMemBuff.MemElemets.EspAppTiming.AppStartAt.EspWifiAssociationStartsAt;
-	RtcSlowMemBuff.MemElemets.EspAvtivitiesCnt.EspWifiSuccessfullAssociationCnt++;
+	EspAppTiming.AppStartAt.EspWifiIpGetStartsAt = esp_log_timestamp();//get_time_mark_ms();
+	EspAppTiming.EspAppRunTime.EspWifiAssociationTookTimeMs += EspAppTiming.AppStartAt.EspWifiIpGetStartsAt - EspAppTiming.AppStartAt.EspWifiAssociationStartsAt;
+	EspAvtivitiesCnt.EspWifiSuccessfullAssociationCnt++;
 
 	tcpip_adapter_dhcp_status_t status;
 
