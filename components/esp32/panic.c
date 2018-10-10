@@ -434,7 +434,7 @@ static void doBacktrace(XtExcFrame *frame)
     uint32_t i = 0, pc = frame->pc, sp = frame->a1;
     panicPutStr("\r\nBacktrace:");
     /* Do not check sanity on first entry, PC could be smashed. */
-    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "\r\nBacktrace: 0x%02x 0x%02x", pc, sp);
+    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "Backtrace: 0x%02x 0x%02x", pc, sp);
     putEntry(pc, sp);
     pc = frame->a0;
     while (i++ < 100) {
