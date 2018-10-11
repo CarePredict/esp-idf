@@ -10,7 +10,7 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	16 /* 10/8/2018 - Power management and Tickless sleep*/
+#define MOTHER_SHIP_ESP_IDF_VRSN0	17
 
 #define BOOT_LOADER_VERSION	1 //__MK__: updated August 30, 2018
 
