@@ -135,7 +135,6 @@ We have two bits to control the interrupt:
 #include "freertos/semphr.h"
 #include "freertos/xtensa_api.h"
 #include "freertos/task.h"
-#include "freertos/ringbuf.h"
 #include "soc/soc.h"
 #include "soc/soc_memory_layout.h"
 #include "soc/dport_reg.h"
@@ -484,7 +483,6 @@ Specify ``SPI_DEVICE_NO_DUMMY`` to ignore this checking. Then you can output dat
 
     //Set CS pin, CS options
     if (dev_config->spics_io_num >= 0) {
-        gpio_set_direction(dev_config->spics_io_num, GPIO_MODE_OUTPUT);
         spicommon_cs_initialize(host, dev_config->spics_io_num, freecs, !(spihost[host]->flags&SPICOMMON_BUSFLAG_NATIVE_PINS));
     }
     if (dev_config->flags&SPI_DEVICE_CLK_AS_CS) {
@@ -710,7 +708,7 @@ static SPI_MASTER_ISR_ATTR esp_err_t device_acquire_bus_internal(spi_device_t *h
 
 /*  This function check for whether the ISR is done, if not, block until semaphore given.
  */
-static inline esp_err_t device_wait_for_isr_idle(spi_device_t *handle, TickType_t wait)
+static inline SPI_MASTER_ISR_ATTR esp_err_t device_wait_for_isr_idle(spi_device_t *handle, TickType_t wait)
 {
     //quickly skip if the isr is already free
     if (!handle->host->isr_free) {
@@ -768,7 +766,7 @@ static SPI_MASTER_ISR_ATTR void device_release_bus_internal(spi_host_t *host)
     }
 }
 
-static inline bool device_is_polling(spi_device_t *handle)
+static inline SPI_MASTER_ISR_ATTR bool device_is_polling(spi_device_t *handle)
 {
     return atomic_load(&handle->host->acquire_cs) == handle->id && handle->host->polling;
 }
@@ -934,19 +932,36 @@ static void SPI_MASTER_ISR_ATTR spi_new_trans(spi_device_t *dev, spi_trans_priv_
     host->hw->user.usr_addr=addrlen ? 1 : 0;
     host->hw->user.usr_command=cmdlen ? 1 : 0;
 
-    /* Output command will be sent from bit 7 to 0 of command_value, and
-     * then bit 15 to 8 of the same register field. Shift and swap to send
-     * more straightly.
-     */
-    host->hw->user2.usr_command_value = SPI_SWAP_DATA_TX(trans->cmd, cmdlen);
+    if ((dev->cfg.flags & SPI_DEVICE_TXBIT_LSBFIRST)==0) {
+        /* Output command will be sent from bit 7 to 0 of command_value, and
+         * then bit 15 to 8 of the same register field. Shift and swap to send
+         * more straightly.
+         */
+        host->hw->user2.usr_command_value = SPI_SWAP_DATA_TX(trans->cmd, cmdlen);
 
-    // shift the address to MSB of addr (and maybe slv_wr_status) register.
-    // output address will be sent from MSB to LSB of addr register, then comes the MSB to LSB of slv_wr_status register.
-    if (addrlen>32) {
-        host->hw->addr = trans->addr >> (addrlen- 32);
-        host->hw->slv_wr_status = trans->addr << (64 - addrlen);
+        // shift the address to MSB of addr (and maybe slv_wr_status) register.
+        // output address will be sent from MSB to LSB of addr register, then comes the MSB to LSB of slv_wr_status register.
+        if (addrlen > 32) {
+            host->hw->addr = trans->addr >> (addrlen - 32);
+            host->hw->slv_wr_status = trans->addr << (64 - addrlen);
+        } else {
+            host->hw->addr = trans->addr << (32 - addrlen);
+        }
     } else {
-        host->hw->addr = trans->addr << (32 - addrlen);
+        /* The output command start from bit0 to bit 15, kept as is.
+         * The output address start from the LSB of the highest byte, i.e.
+         * addr[24] -> addr[31]
+         * ...
+         * addr[0] -> addr[7]
+         * slv_wr_status[24] -> slv_wr_status[31]
+         * ...
+         * slv_wr_status[0] -> slv_wr_status[7]
+         * So swap the byte order to let the LSB sent first.
+         */
+        host->hw->user2.usr_command_value = trans->cmd;
+        uint64_t addr = __builtin_bswap64(trans->addr);
+        host->hw->addr = addr>>32;
+        host->hw->slv_wr_status = addr;
     }
 
     if ((!(dev->cfg.flags & SPI_DEVICE_HALFDUPLEX) && trans_buf->buffer_to_rcv) ||
@@ -1072,7 +1087,7 @@ static void SPI_MASTER_ISR_ATTR spi_intr(void *arg)
     if (do_yield) portYIELD_FROM_ISR();
 }
 
-static esp_err_t check_trans_valid(spi_device_handle_t handle, spi_transaction_t *trans_desc)
+static SPI_MASTER_ISR_ATTR esp_err_t check_trans_valid(spi_device_handle_t handle, spi_transaction_t *trans_desc)
 {
     SPI_CHECK(handle!=NULL, "invalid dev handle", ESP_ERR_INVALID_ARG);
     spi_host_t *host = handle->host;
@@ -1096,7 +1111,7 @@ static esp_err_t check_trans_valid(spi_device_handle_t handle, spi_transaction_t
     return ESP_OK;
 }
 
-static SPI_MASTER_ATTR void uninstall_priv_desc(spi_trans_priv_t* trans_buf)
+static SPI_MASTER_ISR_ATTR void uninstall_priv_desc(spi_trans_priv_t* trans_buf)
 {
     spi_transaction_t *trans_desc = trans_buf->trans;
     if ((void *)trans_buf->buffer_to_send != &trans_desc->tx_data[0] &&
@@ -1115,7 +1130,7 @@ static SPI_MASTER_ATTR void uninstall_priv_desc(spi_trans_priv_t* trans_buf)
     }
 }
 
-static SPI_MASTER_ATTR esp_err_t setup_priv_desc(spi_transaction_t *trans_desc, spi_trans_priv_t* new_desc, bool isdma)
+static SPI_MASTER_ISR_ATTR esp_err_t setup_priv_desc(spi_transaction_t *trans_desc, spi_trans_priv_t* new_desc, bool isdma)
 {
     *new_desc = (spi_trans_priv_t) { .trans = trans_desc, };
 

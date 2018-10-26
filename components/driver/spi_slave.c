@@ -29,7 +29,6 @@
 #include "freertos/semphr.h"
 #include "freertos/xtensa_api.h"
 #include "freertos/task.h"
-#include "freertos/ringbuf.h"
 #include "soc/soc.h"
 #include "soc/soc_memory_layout.h"
 #include "soc/dport_reg.h"
@@ -136,7 +135,6 @@ esp_err_t spi_slave_initialize(spi_host_device_t host, const spi_bus_config_t *b
         ret = err;
         goto cleanup;
     }
-    gpio_set_direction(slave_config->spics_io_num, GPIO_MODE_INPUT);
     spicommon_cs_initialize(host, slave_config->spics_io_num, 0, !bus_is_iomux(spihost[host]));
     // The slave DMA suffers from unexpected transactions. Forbid reading if DMA is enabled by disabling the CS line.
     if (dma_chan != 0) freeze_cs(spihost[host]);
