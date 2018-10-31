@@ -417,9 +417,6 @@ static void esp_panic_dig_reset()
     }
 }
 
-#include <string.h>
-#include "common.h"
-
 static void putEntry(uint32_t pc, uint32_t sp)
 {
     if (pc & 0x80000000) {
@@ -429,17 +426,15 @@ static void putEntry(uint32_t pc, uint32_t sp)
     panicPutHex(pc);
     panicPutStr(":0x");
     panicPutHex(sp);
-    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "%s0x%02x:0x%02x ", BackTrace, pc, sp);
 }
 
-
+#include "common.h"
 static void doBacktrace(XtExcFrame *frame)
 {
     uint32_t i = 0, pc = frame->pc, sp = frame->a1;
     panicPutStr("\r\nBacktrace:");
     /* Do not check sanity on first entry, PC could be smashed. */
-    memset(BackTrace, 0, BAKC_TRACE_MEM_SIZE);
-    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "Backtrace: 0x%02x:0x%02x ", pc, sp);
+    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "Backtrace: 0x%02x 0x%02x", pc, sp);
     putEntry(pc, sp);
     pc = frame->a0;
     while (i++ < 100) {
@@ -449,6 +444,7 @@ static void doBacktrace(XtExcFrame *frame)
         }
         sp = *((uint32_t *) (sp - 0x10 + 4));
         putEntry(pc - 3, sp); // stack frame addresses are return addresses, so subtract 3 to get the CALL address
+        snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "%s 0x%02x 0x%02x", BackTrace, pc - 3, sp);
         pc = *((uint32_t *) (psp - 0x10));
         if (pc < 0x40000000) {
             break;
