@@ -429,7 +429,7 @@ static void putEntry(uint32_t pc, uint32_t sp)
     panicPutHex(pc);
     panicPutStr(":0x");
     panicPutHex(sp);
-    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "%s0x%02x:0x%02x ", BackTrace, pc, sp);
+    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "%s0x%08x:0x%08x ", BackTrace, pc, sp);
 }
 
 
@@ -439,7 +439,7 @@ static void doBacktrace(XtExcFrame *frame)
     panicPutStr("\r\nBacktrace:");
     /* Do not check sanity on first entry, PC could be smashed. */
     memset(BackTrace, 0, BAKC_TRACE_MEM_SIZE);
-    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "Backtrace: 0x%02x:0x%02x ", pc, sp);
+    snprintf(BackTrace, BAKC_TRACE_MEM_SIZE, "Backtrace: 0x%08x:0x%08x ", pc, sp);
     putEntry(pc, sp);
     pc = frame->a0;
     while (i++ < 100) {
