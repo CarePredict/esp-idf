@@ -2,8 +2,7 @@ stages:
   - build
   - assign_test
   - host_test
-  - unit_test
-  - integration_test
+  - target_test
   - check
   - deploy
   - post_check
@@ -121,12 +120,15 @@ build_template_app:
       - $BOT_LABEL_BUILD
       - $BOT_LABEL_REGULAR_TEST
   script:
-    - git clone https://github.com/espressif/esp-idf-template.git
+    # Set the variable for 'esp-idf-template' testing
+    - ESP_IDF_TEMPLATE_GIT=${ESP_IDF_TEMPLATE_GIT:-"https://github.com/espressif/esp-idf-template.git"}
+    - git clone ${ESP_IDF_TEMPLATE_GIT}
     - cd esp-idf-template
     # Try to use the same branch name for esp-idf-template that we're
     # using on esp-idf. If it doesn't exist then just stick to the default
     # branch
     - python $CHECKOUT_REF_SCRIPT esp-idf-template
+    - make defconfig
     # Test debug build (default)
     - make all V=1
     # Now test release build
@@ -180,13 +182,13 @@ build_ssc_02:
 
 # If you want to add new build ssc jobs, please add it into dependencies of `assign_test` and `.test_template`
 
-build_esp_idf_tests:
+
+.build_esp_idf_unit_test_template: &build_esp_idf_unit_test_template
   <<: *build_template
   artifacts:
     paths:
       - tools/unit-test-app/output
       - components/idf_test/unit_test/TestCaseAll.yml
-      - components/idf_test/unit_test/CIConfigs/*.yml
     expire_in: 2 days
   only:
     variables:
@@ -194,11 +196,30 @@ build_esp_idf_tests:
       - $BOT_LABEL_BUILD
       - $BOT_LABEL_UNIT_TEST
       - $BOT_LABEL_REGULAR_TEST
+
+build_esp_idf_tests_make:
+  <<: *build_esp_idf_unit_test_template
   script:
-    - export PATH="$IDF_PATH/tools:$PATH"
-    - cd $CI_PROJECT_DIR/tools/unit-test-app
     - export EXTRA_CFLAGS="-Werror -Werror=deprecated-declarations"
     - export EXTRA_CXXFLAGS=${EXTRA_CFLAGS}
+    - cd $CI_PROJECT_DIR/tools/unit-test-app
+    - MAKEFLAGS= make help # make sure kconfig tools are built in single process
+    - make ut-clean-all-configs
+    - make ut-build-all-configs
+    - python tools/UnitTestParser.py
+    - if [ "$UNIT_TEST_BUILD_SYSTEM" == "make" ]; then exit 0; fi
+    # If Make, delete the CMake built artifacts
+    - rm -rf builds output sdkconfig
+    - rm -rf components/idf_test/unit_test/TestCaseAll.yml
+    - rm -rf components/idf_test/unit_test/CIConfigs/*.yml
+
+build_esp_idf_tests_cmake:
+  <<: *build_esp_idf_unit_test_template
+  script:
+    - export PATH="$IDF_PATH/tools:$PATH"
+    - export EXTRA_CFLAGS="-Werror -Werror=deprecated-declarations"
+    - export EXTRA_CXXFLAGS=${EXTRA_CFLAGS}
+    - cd $CI_PROJECT_DIR/tools/unit-test-app
     # Build with CMake first
     - idf.py ut-clean-all-configs
     - idf.py ut-build-all-configs
@@ -209,12 +230,6 @@ build_esp_idf_tests:
     - rm -rf builds output sdkconfig
     - rm -rf components/idf_test/unit_test/TestCaseAll.yml
     - rm -rf components/idf_test/unit_test/CIConfigs/*.yml
-    # Then build with Make
-    - cd $CI_PROJECT_DIR/tools/unit-test-app
-    - MAKEFLAGS= make help # make sure kconfig tools are built in single process
-    - make ut-clean-all-configs
-    - make ut-build-all-configs
-    - python tools/UnitTestParser.py
 
 .build_examples_make_template: &build_examples_make_template
   <<: *build_template
@@ -370,9 +385,17 @@ build_docs:
     - make html
     - ../check_doc_warnings.sh
 
-verify_cmake_style:
-  stage: build
+.check_job_template: &check_job_template
+  stage: check
   image: $CI_DOCKER_REGISTRY/esp32-ci-env$BOT_DOCKER_IMAGE_TAG
+  tags:
+    - host_test
+  dependencies: []
+  before_script: *do_nothing_before_no_filter
+
+verify_cmake_style:
+  <<: *check_job_template
+  stage: build
   only:
     variables:
       - $BOT_TRIGGER_WITH_LABEL == null
@@ -437,6 +460,13 @@ test_fatfs_on_host:
   script:
     - cd components/fatfs/test_fatfs_host/
     - make test
+
+test_ldgen_on_host:
+  <<: *host_test_template
+  script:
+    - cd tools/ldgen/test
+    - ./test_fragments.py
+    - ./test_generation.py
 
 .host_fuzzer_test_template: &host_fuzzer_test_template
   stage: host_test
@@ -537,7 +567,7 @@ test_idf_monitor:
     expire_in: 1 week
   script:
     - cd ${IDF_PATH}/tools/test_idf_monitor
-    - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh ./run_test_idf_monitor.py
+    - ./run_test_idf_monitor.py
 
 test_idf_size:
   <<: *host_test_template
@@ -561,9 +591,9 @@ test_esp_err_to_name_on_host:
   script:
     - cd ${IDF_PATH}/tools/
     - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh -p 2.7.15 ./gen_esp_err_to_name.py
-    - git diff --exit-code -- ../components/esp32/esp_err_to_name.c || (echo 'Differences found. Please run gen_esp_err_to_name.py and commit the changes.'; exit 1)
+    - git diff --exit-code -- ../components/esp32/esp_err_to_name.c || { echo 'Differences found. Please run gen_esp_err_to_name.py and commit the changes.'; exit 1; }
     - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh -p 3.4.8 ./gen_esp_err_to_name.py
-    - git diff --exit-code -- ../components/esp32/esp_err_to_name.c || (echo 'Differences found between running under Python 2 and 3.'; exit 1)
+    - git diff --exit-code -- ../components/esp32/esp_err_to_name.c || { echo 'Differences found between running under Python 2 and 3.'; exit 1; }
 
 test_espcoredump:
   <<: *host_test_template
@@ -663,14 +693,6 @@ check_doc_links:
     - cd docs
     - make linkcheck
 
-.check_job_template: &check_job_template
-  stage: check
-  image: $CI_DOCKER_REGISTRY/esp32-ci-env$BOT_DOCKER_IMAGE_TAG
-  tags:
-    - build
-  dependencies: []
-  before_script: *do_nothing_before_no_filter
-
 check_line_endings:
   <<: *check_job_template
   script:
@@ -698,6 +720,18 @@ check_examples_cmake_make:
   before_script: *do_nothing_before
   script:
     - tools/ci/check_examples_cmake_make.sh
+
+check_python_style:
+  <<: *check_job_template
+  artifacts:
+    when: on_failure
+    paths:
+      - flake8_output.txt
+    expire_in: 1 week
+  before_script: *do_nothing_before
+  script:
+    # run it only under Python 3 (it is very slow under Python 2)
+    - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh -p 3.4.8 python -m flake8 --config=$IDF_PATH/.flake8 --output-file=flake8_output.txt --tee --benchmark $IDF_PATH
 
 check_ut_cmake_make:
   stage: check
@@ -749,7 +783,8 @@ assign_test:
     - build_ssc_00
     - build_ssc_01
     - build_ssc_02
-    - build_esp_idf_tests
+    - build_esp_idf_tests_make
+    - build_esp_idf_tests_cmake
   variables:
     TEST_FW_PATH: "$CI_PROJECT_DIR/tools/tiny-test-fw"
     EXAMPLE_CONFIG_OUTPUT_PATH: "$CI_PROJECT_DIR/examples/test_configs"
@@ -779,7 +814,7 @@ assign_test:
     - python CIAssignTestCases.py -t $IDF_PATH/components/idf_test/integration_test -c $IDF_PATH/.gitlab-ci.yml -b $IDF_PATH/SSC/ssc_bin
 
 .example_test_template: &example_test_template
-  stage: integration_test
+  stage: target_test
   when: on_success
   only:
     refs:
@@ -814,6 +849,8 @@ assign_test:
     paths:
       - $LOG_PATH
     expire_in: 1 week
+    reports:
+        junit: $LOG_PATH/*/XUNIT_RESULT.xml
   variables:
     TEST_FW_PATH: "$CI_PROJECT_DIR/tools/tiny-test-fw"
     TEST_CASE_PATH: "$CI_PROJECT_DIR/examples"
@@ -833,10 +870,11 @@ assign_test:
 
 .unit_test_template: &unit_test_template
   <<: *example_test_template
-  stage: unit_test
+  stage: target_test
   dependencies:
     - assign_test
-    - build_esp_idf_tests
+    - build_esp_idf_tests_make
+    - build_esp_idf_tests_cmake
   only:
     refs:
       - master
@@ -855,7 +893,7 @@ assign_test:
     ENV_FILE: "$CI_PROJECT_DIR/ci-test-runner-configs/$CI_RUNNER_DESCRIPTION/EnvConfig.yml"
 
 .test_template: &test_template
-  stage: integration_test
+  stage: target_test
   when: on_success
   only:
     refs:
@@ -969,6 +1007,12 @@ example_test_006_01:
   tags:
     - ESP32
     - Example_ShieldBox
+
+example_test_007_01:
+  <<: *example_test_template
+  tags:
+    - ESP32
+    - Example_I2C_CCS811_SENSOR
 
 UT_001_01:
   <<: *unit_test_template
@@ -1198,6 +1242,30 @@ UT_001_38:
     - ESP32_IDF
     - UT_T1_1
 
+UT_001_39:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+
+UT_001_40:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+
+UT_001_41:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+
+UT_001_42:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+
 UT_002_01:
   <<: *unit_test_template
   tags:
@@ -1302,7 +1370,7 @@ UT_004_10:
   tags:
     - ESP32_IDF
     - UT_T1_1
-    - psram    
+    - psram
 
 UT_004_11:
   <<: *unit_test_template
@@ -1324,7 +1392,28 @@ UT_004_13:
     - ESP32_IDF
     - UT_T1_1
     - psram
-    
+
+UT_004_14:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - psram
+
+UT_004_15:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - psram
+
+UT_004_14:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - psram
+
 UT_005_01:
   <<: *unit_test_template
   tags:
@@ -1420,7 +1509,7 @@ UT_008_04:
     - ESP32_IDF
     - UT_T1_LEDC
     - psram
-    
+
 UT_009_01:
   <<: *unit_test_template
   tags:
@@ -1432,7 +1521,7 @@ UT_009_02:
   tags:
     - ESP32_IDF
     - UT_T2_RS485
-    
+
 UT_009_03:
   <<: *unit_test_template
   tags:
@@ -1509,6 +1598,95 @@ UT_012_03:
     - ESP32_IDF
     - UT_T1_1
     - 8Mpsram
+
+UT_012_04:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - 8Mpsram
+
+UT_012_05:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - 8Mpsram
+
+UT_014_01:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T2_I2C
+
+UT_014_02:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T2_I2C
+
+UT_014_03:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T2_I2C
+
+UT_014_04:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T2_I2C
+    - psram
+
+UT_015_01:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_MCPWM
+
+UT_015_02:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_MCPWM
+
+UT_015_03:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_MCPWM
+
+UT_015_04:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_MCPWM
+    - psram
+
+UT_016_01:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_I2S
+
+UT_016_02:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_I2S
+
+UT_016_03:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_I2S
+
+UT_016_04:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_I2S
+    - psram
 
 UT_601_01:
   <<: *unit_test_template

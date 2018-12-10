@@ -71,6 +71,7 @@
 #include "esp_pm.h"
 #include "pm_impl.h"
 #include "trax.h"
+#include "esp_ota_ops.h"
 
 #define STRINGIFY(s) STRINGIFY2(s)
 #define STRINGIFY2(s) #s
@@ -124,6 +125,7 @@ void IRAM_ATTR call_start_cpu0()
     RESET_REASON rst_reas[2];
 #endif
     cpu_configure_region_protection();
+    cpu_init_memctl();
 
     //Move exception vectors to IRAM
     asm volatile (\
@@ -174,6 +176,20 @@ void IRAM_ATTR call_start_cpu0()
 #endif
 
     ESP_EARLY_LOGI(TAG, "Pro cpu up.");
+    if (LOG_LOCAL_LEVEL >= ESP_LOG_INFO) {
+        const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+        ESP_EARLY_LOGI(TAG, "Application information:");
+        ESP_EARLY_LOGI(TAG, "Project name:     %s", app_desc->project_name);
+        ESP_EARLY_LOGI(TAG, "App version:      %s", app_desc->version);
+#ifdef CONFIG_APP_SECURE_VERSION
+        ESP_EARLY_LOGI(TAG, "Secure version:   %x", app_desc->secure_version);
+#endif
+#ifdef CONFIG_APP_COMPILE_TIME_DATE
+        ESP_EARLY_LOGI(TAG, "Compile time:     %s", app_desc->time);
+        ESP_EARLY_LOGI(TAG, "Compile date:     %s", app_desc->date);
+#endif
+        ESP_EARLY_LOGI(TAG, "ESP-IDF:          %s", app_desc->idf_ver);
+    }
 
 #if !CONFIG_FREERTOS_UNICORE
     if (REG_GET_BIT(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_VER_DIS_APP_CPU)) {
@@ -249,6 +265,7 @@ void IRAM_ATTR call_start_cpu1()
 
     ets_set_appcpu_boot_addr(0);
     cpu_configure_region_protection();
+    cpu_init_memctl();
 
 #if CONFIG_CONSOLE_UART_NONE
     ets_install_putc1(NULL);
@@ -382,6 +399,11 @@ void start_cpu0_default(void)
 
 #if CONFIG_ESP32_ENABLE_COREDUMP
     esp_core_dump_init();
+    size_t core_data_sz = 0;
+    size_t core_data_addr = 0;
+    if (esp_core_dump_image_get(&core_data_addr, &core_data_sz) == ESP_OK && core_data_sz > 0) {
+        ESP_LOGI(TAG, "Found core dump %d bytes in flash @ 0x%x", core_data_sz, core_data_addr);
+    }
 #endif
 
     portBASE_TYPE res = xTaskCreatePinnedToCore(&main_task, "main",

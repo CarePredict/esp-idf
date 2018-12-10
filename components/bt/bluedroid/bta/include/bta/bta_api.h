@@ -399,6 +399,8 @@ typedef struct {
     UINT8                   tx_power;
 } tBTA_BLE_ADV_DATA;
 
+typedef void (tBTA_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK) (tBTA_STATUS status, uint8_t subcode, uint32_t length, uint8_t *device_info);
+
 typedef void (tBTA_SET_ADV_DATA_CMPL_CBACK) (tBTA_STATUS status);
 
 typedef tBTM_START_ADV_CMPL_CBACK tBTA_START_ADV_CMPL_CBACK;
@@ -1616,6 +1618,22 @@ extern void BTA_DmPinReply(BD_ADDR bd_addr, BOOLEAN accept, UINT8 pin_len,
 **
 *******************************************************************************/
 extern void BTA_DmLocalOob(void);
+
+/*******************************************************************************
+**
+** Function         BTA_DmOobReply
+**
+**                  This function is called to provide the OOB data for
+**                  SMP in response to BTM_LE_OOB_REQ_EVT
+**
+** Parameters:      bd_addr     - Address of the peer device
+**                  len         - length of simple pairing Randomizer  C
+**                  p_value     - simple pairing Randomizer  C.
+**
+** Returns          void
+**
+*******************************************************************************/
+extern void BTA_DmOobReply(BD_ADDR bd_addr, UINT8 len, UINT8 *p_value);
 #endif /* BTM_OOB_INCLUDED */
 
 /*******************************************************************************
@@ -2207,6 +2225,22 @@ extern void BTA_DmBleSetAdvConfigRaw (UINT8 *p_raw_adv, UINT32 raw_adv_len,
 
 /*******************************************************************************
 **
+** Function         BTA_DmBleSetLongAdv
+**
+** Description      This function is called to set long Advertising data
+**
+** Parameters       adv_data : long advertising data.
+**                  adv_data_len : long advertising data length.
+**                  p_adv_data_cback : set long adv data complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+void BTA_DmBleSetLongAdv (UINT8 *adv_data, UINT32 adv_data_len,
+                            tBTA_SET_ADV_DATA_CMPL_CBACK *p_adv_data_cback);
+
+/*******************************************************************************
+**
 ** Function         BTA_DmBleSetScanRsp
 **
 ** Description      This function is called to override the BTA scan response.
@@ -2235,6 +2269,24 @@ extern void BTA_DmBleSetScanRsp (tBTA_BLE_AD_MASK data_mask,
 *******************************************************************************/
 extern void BTA_DmBleSetScanRspRaw (UINT8 *p_raw_scan_rsp, UINT32 raw_scan_rsp_len,
                                     tBTA_SET_ADV_DATA_CMPL_CBACK *p_scan_rsp_data_cback);
+
+/*******************************************************************************
+**
+** Function         BTA_DmUpdateDuplicateExceptionalList
+**
+** Description      This function is called to update duplicate scan exceptional list
+**
+** Parameters       subcode : add, remove or clean duplicate scan exceptional list.
+**                  type : device info type.
+**                  device_info:  device info
+**                  p_update_duplicate_ignore_list_cback :  update complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+extern void BTA_DmUpdateDuplicateExceptionalList(UINT8 subcode, UINT32 type, 
+                                                BD_ADDR device_info, 
+                                                tBTA_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK p_update_duplicate_exceptional_list_cback);
 
 /*******************************************************************************
 **
