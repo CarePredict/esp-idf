@@ -26,6 +26,7 @@
 #include "driver/uart.h"
 #include "sdkconfig.h"
 #include "driver/uart_select.h"
+#include "rom/uart.h"
 
 // TODO: make the number of UARTs chip dependent
 #define UART_NUM 3
@@ -304,6 +305,15 @@ static int uart_access(const char *path, int amode)
     return ret;
 }
 
+static int uart_fsync(int fd)
+{
+    assert(fd >= 0 && fd < 3);
+    _lock_acquire_recursive(&s_uart_write_locks[fd]);
+    uart_tx_wait_idle((uint8_t) fd);
+    _lock_release_recursive(&s_uart_write_locks[fd]);
+    return 0;
+}
+
 static void select_notif_callback(uart_port_t uart_num, uart_select_notif_t uart_select_notif, BaseType_t *task_woken)
 {
     switch (uart_select_notif) {
@@ -382,6 +392,17 @@ static esp_err_t uart_start_select(int nfds, fd_set *readfds, fd_set *writefds, 
     FD_ZERO(readfds);
     FD_ZERO(writefds);
     FD_ZERO(exceptfds);
+
+    for (int i = 0; i < max_fds; ++i) {
+        if (FD_ISSET(i, _readfds_orig)) {
+            size_t buffered_size;
+            if (uart_get_buffered_data_len(i, &buffered_size) == ESP_OK && buffered_size > 0) {
+                // signalize immediately when data is buffered
+                FD_SET(i, _readfds);
+                esp_vfs_select_triggered(_signal_sem);
+            }
+        }
+    }
 
     portEXIT_CRITICAL(uart_get_selectlock());
     // s_one_select_lock is not released on successfull exit - will be
@@ -883,6 +904,7 @@ void esp_vfs_dev_uart_register()
         .close = &uart_close,
         .read = &uart_read,
         .fcntl = &uart_fcntl,
+        .fsync = &uart_fsync,
         .access = &uart_access,
         .start_select = &uart_start_select,
         .end_select = &uart_end_select,

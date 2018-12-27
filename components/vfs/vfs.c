@@ -171,12 +171,14 @@ esp_err_t esp_vfs_register_with_id(const esp_vfs_t *vfs, void *ctx, esp_vfs_id_t
 
 esp_err_t esp_vfs_unregister(const char* base_path)
 {
+    const size_t base_path_len = strlen(base_path);
     for (size_t i = 0; i < s_vfs_count; ++i) {
         vfs_entry_t* vfs = s_vfs[i];
         if (vfs == NULL) {
             continue;
         }
-        if (memcmp(base_path, vfs->path_prefix, vfs->path_prefix_len) == 0) {
+        if (base_path_len == vfs->path_prefix_len &&
+                memcmp(base_path, vfs->path_prefix, vfs->path_prefix_len) == 0) {
             free(vfs);
             s_vfs[i] = NULL;
 
@@ -1094,3 +1096,17 @@ int tcsendbreak(int fd, int duration)
     return ret;
 }
 #endif // CONFIG_SUPPORT_TERMIOS
+
+int esp_vfs_utime(const char *path, const struct utimbuf *times)
+{
+    int ret;
+    const vfs_entry_t* vfs = get_vfs_for_path(path);
+    struct _reent* r = __getreent();
+    if (vfs == NULL) {
+        __errno_r(r) = ENOENT;
+        return -1;
+    }
+    const char* path_within_vfs = translate_path(vfs, path);
+    CHECK_AND_CALL(ret, r, vfs, utime, path_within_vfs, times);
+    return ret;
+}

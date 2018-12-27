@@ -252,9 +252,11 @@ static int create_ssl_handle(esp_tls_t *tls, const char *hostname, size_t hostle
         goto exit;
     }
 
+#ifdef CONFIG_MBEDTLS_SSL_ALPN
     if (cfg->alpn_protos) {
         mbedtls_ssl_conf_alpn_protocols(&tls->conf, cfg->alpn_protos);
     }
+#endif
 
     if (cfg->use_global_ca_store == true) {
         if (global_cacert == NULL) {
@@ -486,9 +488,9 @@ static int get_port(const char *url, struct http_parser_url *u)
     if (u->field_data[UF_PORT].len) {
         return strtol(&url[u->field_data[UF_PORT].off], NULL, 10);
     } else {
-        if (strncmp(&url[u->field_data[UF_SCHEMA].off], "http", u->field_data[UF_SCHEMA].len) == 0) {
+        if (strncasecmp(&url[u->field_data[UF_SCHEMA].off], "http", u->field_data[UF_SCHEMA].len) == 0) {
             return 80;
-        } else if (strncmp(&url[u->field_data[UF_SCHEMA].off], "https", u->field_data[UF_SCHEMA].len) == 0) {
+        } else if (strncasecmp(&url[u->field_data[UF_SCHEMA].off], "https", u->field_data[UF_SCHEMA].len) == 0) {
             return 443;
         }
     }

@@ -76,7 +76,7 @@ def _run_tool(tool_name, args, cwd):
         return arg
     display_args = " ".join(quote_arg(arg) for arg in args)
     print("Running %s in directory %s" % (tool_name, quote_arg(cwd)))
-    print('Executing "%s"...' % display_args)
+    print('Executing "%s"...' % str(display_args))
     try:
         # Note: we explicitly pass in os.environ here, as we may have set IDF_PATH there during startup
         subprocess.check_call(args, env=os.environ, cwd=cwd)
@@ -244,6 +244,12 @@ def _get_esptool_args(args):
     result = [ PYTHON, esptool_path ]
     result += [ "-p", args.port ]
     result += [ "-b", str(args.baud) ]
+
+    with open(os.path.join(args.build_dir, "flasher_args.json")) as f:
+        flasher_args = json.load(f)
+
+    extra_esptool_args = flasher_args["extra_esptool_args"]
+    result += [ "--after", extra_esptool_args["after"] ]
     return result
 
 def flash(action, args):
@@ -290,7 +296,7 @@ def monitor(action, args):
     idf_py = [ PYTHON ] + get_commandline_options()  # commands to re-run idf.py
     monitor_args += [ "-m", " ".join("'%s'" % a for a in idf_py) ]
 
-    if "MSYSTEM" is os.environ:
+    if "MSYSTEM" in os.environ:
         monitor_args = [ "winpty" ] + monitor_args
     _run_tool("idf_monitor", monitor_args, args.project_dir)
 
@@ -360,10 +366,11 @@ def print_closing_message(args):
             for o,f in flash_items:
                 cmd += o + " " + flasher_path(f) + " "
 
-        print("%s -p %s -b %s write_flash %s" % (
+        print("%s -p %s -b %s --after %s write_flash %s" % (
             os.path.relpath("%s/components/esptool_py/esptool/esptool.py" % os.environ["IDF_PATH"]),
             args.port or "(PORT)",
             args.baud,
+            flasher_args["extra_esptool_args"]["after"],
             cmd.strip()))
         print("or run 'idf.py -p %s %s'" % (args.port or "(PORT)", key + "-flash" if key != "project" else "flash",))
 
@@ -379,27 +386,29 @@ def print_closing_message(args):
 
 ACTIONS = {
     # action name : ( function (or alias), dependencies, order-only dependencies )
-    "all" :                  ( build_target,    [], [ "reconfigure", "menuconfig", "clean", "fullclean" ] ),
-    "build":                 ( "all",           [], [] ),  # build is same as 'all' target
-    "clean":                 ( clean,           [], [ "fullclean" ] ),
-    "fullclean":             ( fullclean,       [], [] ),
-    "reconfigure":           ( reconfigure,     [], [ "menuconfig" ] ),
-    "menuconfig":            ( build_target,    [], [] ),
+    "all" :                  ( build_target, [], [ "reconfigure", "menuconfig", "clean", "fullclean" ] ),
+    "build":                 ( "all",        [], [] ),  # build is same as 'all' target
+    "clean":                 ( clean,        [], [ "fullclean" ] ),
+    "fullclean":             ( fullclean,    [], [] ),
+    "reconfigure":           ( reconfigure,  [], [ "menuconfig" ] ),
+    "menuconfig":            ( build_target, [], [] ),
     "defconfig":             ( build_target,    [], [] ),
-    "confserver":            ( build_target,    [], [] ),
-    "size":                  ( build_target,    [ "app" ], [] ),
-    "size-components":       ( build_target,    [ "app" ], [] ),
-    "size-files":            ( build_target,    [ "app" ], [] ),
-    "bootloader":            ( build_target,    [], [] ),
-    "bootloader-clean":      ( build_target,    [], [] ),
-    "bootloader-flash":      ( flash,           [ "bootloader" ], [ "erase_flash"] ),
-    "app":                   ( build_target,    [], [ "clean", "fullclean", "reconfigure" ] ),
-    "app-flash":             ( flash,           [ "app" ], [ "erase_flash"]),
-    "partition_table":       ( build_target,    [], [ "reconfigure" ] ),
-    "partition_table-flash": ( flash,           [ "partition_table" ], [ "erase_flash" ]),
-    "flash":                 ( flash,           [ "all" ], [ "erase_flash" ] ),
-    "erase_flash":           ( erase_flash,     [], []),
-    "monitor":               ( monitor,         [], [ "flash", "partition_table-flash", "bootloader-flash", "app-flash" ]),
+    "confserver":            ( build_target, [], [] ),
+    "size":                  ( build_target, [ "app" ], [] ),
+    "size-components":       ( build_target, [ "app" ], [] ),
+    "size-files":            ( build_target, [ "app" ], [] ),
+    "bootloader":            ( build_target, [], [] ),
+    "bootloader-clean":      ( build_target, [], [] ),
+    "bootloader-flash":      ( flash,        [ "bootloader" ], [ "erase_flash"] ),
+    "app":                   ( build_target, [], [ "clean", "fullclean", "reconfigure" ] ),
+    "app-flash":             ( flash,        [ "app" ], [ "erase_flash"]),
+    "partition_table":       ( build_target, [], [ "reconfigure" ] ),
+    "partition_table-flash": ( flash,        [ "partition_table" ], [ "erase_flash" ]),
+    "flash":                 ( flash,        [ "all" ], [ "erase_flash" ] ),
+    "erase_flash":           ( erase_flash,  [], []),
+    "monitor":               ( monitor,      [], [ "flash", "partition_table-flash", "bootloader-flash", "app-flash" ]),
+    "erase_otadata":         ( build_target, [], []),
+    "read_otadata":          ( build_target, [], []),
 }
 
 def get_commandline_options():

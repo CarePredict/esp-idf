@@ -233,8 +233,12 @@ esp_err_t spi_bus_initialize(spi_host_device_t host, const spi_bus_config_t *bus
 
     SPI_CHECK(host>=SPI_HOST && host<=VSPI_HOST, "invalid host", ESP_ERR_INVALID_ARG);
     SPI_CHECK( dma_chan >= 0 && dma_chan <= 2, "invalid dma channel", ESP_ERR_INVALID_ARG );
+    SPI_CHECK((bus_config->intr_flags & (ESP_INTR_FLAG_HIGH|ESP_INTR_FLAG_EDGE|ESP_INTR_FLAG_INTRDISABLED))==0, "intr flag not allowed", ESP_ERR_INVALID_ARG);
+#ifndef CONFIG_SPI_MASTER_ISR_IN_IRAM
+    SPI_CHECK((bus_config->intr_flags & ESP_INTR_FLAG_IRAM)==0, "ESP_INTR_FLAG_IRAM should be disabled when CONFIG_SPI_MASTER_ISR_IN_IRAM is not set.", ESP_ERR_INVALID_ARG);
+#endif
 
-    spi_chan_claimed=spicommon_periph_claim(host);
+    spi_chan_claimed=spicommon_periph_claim(host, "spi master");
     SPI_CHECK(spi_chan_claimed, "host already in use", ESP_ERR_INVALID_STATE);
 
     if ( dma_chan != 0 ) {
@@ -284,10 +288,7 @@ esp_err_t spi_bus_initialize(spi_host_device_t host, const spi_bus_config_t *bus
         }
     }
 
-    int flags = ESP_INTR_FLAG_INTRDISABLED;
-#ifdef CONFIG_SPI_MASTER_ISR_IN_IRAM
-    flags |= ESP_INTR_FLAG_IRAM;
-#endif
+    int flags = bus_config->intr_flags | ESP_INTR_FLAG_INTRDISABLED;
     err = esp_intr_alloc(spicommon_irqsource_for_host(host), flags, spi_intr, (void*)spihost[host], &spihost[host]->intr);
     if (err != ESP_OK) {
         ret = err;
@@ -442,14 +443,14 @@ esp_err_t spi_bus_add_device(spi_host_device_t host, const spi_device_interface_
     duty_cycle = (dev_config->duty_cycle_pos==0) ? 128 : dev_config->duty_cycle_pos;
     eff_clk = spi_cal_clock(apbclk, dev_config->clock_speed_hz, duty_cycle, (uint32_t*)&clk_reg);
     int freq_limit = spi_get_freq_limit(!(spihost[host]->flags&SPICOMMON_BUSFLAG_NATIVE_PINS), dev_config->input_delay_ns);
-    //GPIO matrix can only change data at 80Mhz rate, which only allows 40MHz SPI clock.
-    SPI_CHECK(eff_clk <= 40*1000*1000 || spihost[host]->flags&SPICOMMON_BUSFLAG_NATIVE_PINS, "80MHz only supported on iomux pins", ESP_ERR_INVALID_ARG);
+
     //Speed >=40MHz over GPIO matrix needs a dummy cycle, but these don't work for full-duplex connections.
     spi_get_timing(!(spihost[host]->flags&SPICOMMON_BUSFLAG_NATIVE_PINS), dev_config->input_delay_ns, eff_clk, &dummy_required, &miso_delay);
     SPI_CHECK( dev_config->flags & SPI_DEVICE_HALFDUPLEX || dummy_required == 0 ||
             dev_config->flags & SPI_DEVICE_NO_DUMMY,
-"When GPIO matrix is used in full-duplex mode at frequency > %.1fMHz, device cannot read correct data.\n\
-Please note the SPI can only work at divisors of 80MHz, and the driver always tries to find the closest frequency to your configuration.\n\
+"When work in full-duplex mode at frequency > %.1fMHz, device cannot read correct data.\n\
+Try to use IOMUX pins to increase the frequency limit, or use the half duplex mode.\n\
+Please note the SPI master can only work at divisors of 80MHz, and the driver always tries to find the closest frequency to your configuration.\n\
 Specify ``SPI_DEVICE_NO_DUMMY`` to ignore this checking. Then you can output data at higher speed, or read data at your own risk.",
             ESP_ERR_INVALID_ARG, freq_limit/1000./1000 );
 
@@ -498,7 +499,7 @@ Specify ``SPI_DEVICE_NO_DUMMY`` to ignore this checking. Then you can output dat
     spihost[host]->hw->ctrl2.mosi_delay_mode = 0;
     spihost[host]->hw->ctrl2.mosi_delay_num = 0;
     *handle=dev;
-    ESP_LOGD(SPI_TAG, "SPI%d: New device added to CS%d, effective clock: %dkHz", host, freecs, dev->clk_cfg.eff_clk/1000);
+    ESP_LOGD(SPI_TAG, "SPI%d: New device added to CS%d, effective clock: %dkHz", host+1, freecs, dev->clk_cfg.eff_clk/1000);
     return ESP_OK;
 
 nomem:
@@ -1102,6 +1103,14 @@ static SPI_MASTER_ISR_ATTR esp_err_t check_trans_valid(spi_device_handle_t handl
     SPI_CHECK(!((trans_desc->flags & (SPI_TRANS_MODE_DIO|SPI_TRANS_MODE_QIO)) && (!(handle->cfg.flags & SPI_DEVICE_HALFDUPLEX))), "incompatible iface params", ESP_ERR_INVALID_ARG);
     SPI_CHECK( !(handle->cfg.flags & SPI_DEVICE_HALFDUPLEX) || host->dma_chan == 0 || !(trans_desc->flags & SPI_TRANS_USE_RXDATA || trans_desc->rx_buffer != NULL)
         || !(trans_desc->flags & SPI_TRANS_USE_TXDATA || trans_desc->tx_buffer!=NULL), "SPI half duplex mode does not support using DMA with both MOSI and MISO phases.", ESP_ERR_INVALID_ARG );
+    //MOSI phase is skipped only when both tx_buffer and SPI_TRANS_USE_TXDATA are not set.
+    SPI_CHECK(trans_desc->length != 0 || (trans_desc->tx_buffer == NULL && !(trans_desc->flags & SPI_TRANS_USE_TXDATA)),
+        "trans tx_buffer should be NULL and SPI_TRANS_USE_TXDATA should be cleared to skip MOSI phase.", ESP_ERR_INVALID_ARG);
+    //MISO phase is skipped only when both rx_buffer and SPI_TRANS_USE_RXDATA are not set.
+    //If set rxlength=0 in full_duplex mode, it will be automatically set to length
+    SPI_CHECK(!(handle->cfg.flags & SPI_DEVICE_HALFDUPLEX) || trans_desc->rxlength != 0 ||
+        (trans_desc->rx_buffer == NULL && ((trans_desc->flags & SPI_TRANS_USE_RXDATA)==0)),
+        "trans rx_buffer should be NULL and SPI_TRANS_USE_RXDATA should be cleared to skip MISO phase.", ESP_ERR_INVALID_ARG);
     //In Full duplex mode, default rxlength to be the same as length, if not filled in.
     // set rxlength to length is ok, even when rx buffer=NULL
     if (trans_desc->rxlength==0 && !(handle->cfg.flags & SPI_DEVICE_HALFDUPLEX)) {

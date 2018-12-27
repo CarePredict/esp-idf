@@ -26,7 +26,9 @@ API Guides
    Application Level Tracing <app_trace>
    Console Component <console>
    ROM debug console <romconsole>
+   RF Calibration <RF_calibration>
    WiFi Driver <wifi>
    ESP-MESH <mesh>
    BluFi <blufi>
    External SPI-connected RAM <external-ram>
+   Linker Script Generation <linker-script-generation>

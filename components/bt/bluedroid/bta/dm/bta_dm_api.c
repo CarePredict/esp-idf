@@ -510,6 +510,36 @@ void BTA_DmLocalOob(void)
         bta_sys_sendmsg(p_msg);
     }
 }
+
+/*******************************************************************************
+**
+** Function         BTA_DmOobReply
+**
+**                  This function is called to provide the OOB data for
+**                  SMP in response to BTM_LE_OOB_REQ_EVT
+**
+** Parameters:      bd_addr     - Address of the peer device
+**                  len         - length of simple pairing Randomizer  C
+**                  p_value     - simple pairing Randomizer  C.
+**
+** Returns          void
+**
+*******************************************************************************/
+void BTA_DmOobReply(BD_ADDR bd_addr, UINT8 len, UINT8 *p_value)
+{
+    tBTA_DM_API_OOB_REPLY    *p_msg;
+
+    if ((p_msg = (tBTA_DM_API_OOB_REPLY *) osi_malloc(sizeof(tBTA_DM_API_OOB_REPLY))) != NULL) {
+        p_msg->hdr.event = BTA_DM_API_OOB_REPLY_EVT;
+        if(p_value == NULL || len > BT_OCTET16_LEN) {
+            return;
+        }
+        memcpy(p_msg->bd_addr, bd_addr, BD_ADDR_LEN);
+        p_msg->len = len;
+        memcpy(p_msg->value, p_value, len);
+        bta_sys_sendmsg(p_msg);
+    }
+}
 #endif /* BTM_OOB_INCLUDED */
 /*******************************************************************************
 **
@@ -1202,6 +1232,35 @@ void BTA_DmBleSetAdvConfigRaw (UINT8 *p_raw_adv, UINT32 raw_adv_len,
 
 /*******************************************************************************
 **
+** Function         BTA_DmBleSetLongAdv
+**
+** Description      This function is called to set long Advertising data
+**
+** Parameters       adv_data : long advertising data.
+**                  adv_data_len : long advertising data length.
+**                  p_adv_data_cback : set long adv data complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+void BTA_DmBleSetLongAdv (UINT8 *adv_data, UINT32 adv_data_len,
+                            tBTA_SET_ADV_DATA_CMPL_CBACK *p_adv_data_cback)
+{
+    tBTA_DM_API_SET_LONG_ADV  *p_msg;
+
+    if ((p_msg = (tBTA_DM_API_SET_LONG_ADV *)
+                 osi_malloc(sizeof(tBTA_DM_API_SET_LONG_ADV))) != NULL) {
+        p_msg->hdr.event = BTA_DM_API_BLE_SET_LONG_ADV_EVT;
+        p_msg->p_adv_data_cback = p_adv_data_cback;
+        p_msg->adv_data = adv_data;
+        p_msg->adv_data_len = adv_data_len;
+
+        bta_sys_sendmsg(p_msg);
+    }
+}
+
+/*******************************************************************************
+**
 ** Function         BTA_DmBleSetScanRsp
 **
 ** Description      This function is called to override the BTA scan response.
@@ -1251,6 +1310,34 @@ void BTA_DmBleSetScanRspRaw (UINT8 *p_raw_scan_rsp, UINT32 raw_scan_rsp_len,
         p_msg->p_adv_data_cback = p_scan_rsp_data_cback;
         p_msg->p_raw_adv = p_raw_scan_rsp;
         p_msg->raw_adv_len = raw_scan_rsp_len;
+
+        bta_sys_sendmsg(p_msg);
+    }
+}
+
+/*******************************************************************************
+**
+** Function         BTA_DmUpdateDuplicateExceptionalList
+**
+** Description      This function is called to update duplicate scan exceptional list
+**
+** Parameters       subcode : add, remove or clean duplicate scan exceptional list.
+**                  type : device info type.
+**                  device_info:  device info
+**                  p_update_duplicate_ignore_list_cback :  update complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+void BTA_DmUpdateDuplicateExceptionalList(UINT8 subcode, UINT32 type, BD_ADDR device_info, tBTA_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK p_update_duplicate_exceptional_list_cback)
+{
+    tBTA_DM_API_UPDATE_DUPLICATE_EXCEPTIONAL_LIST *p_msg;
+    if ((p_msg = (tBTA_DM_API_UPDATE_DUPLICATE_EXCEPTIONAL_LIST *)osi_malloc(sizeof(tBTA_DM_API_UPDATE_DUPLICATE_EXCEPTIONAL_LIST))) != NULL) {
+        p_msg->hdr.event = BTA_DM_API_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_EVT;
+        p_msg->subcode = subcode;
+        p_msg->type = type;
+        p_msg->exceptional_list_cb = p_update_duplicate_exceptional_list_cback;
+        memcpy(p_msg->device_info, device_info, sizeof(BD_ADDR));
 
         bta_sys_sendmsg(p_msg);
     }
