@@ -25,13 +25,22 @@ import time
 import argparse
 import threading
 
-# if we want to run test case outside `tiny-test-fw` folder,
-# we need to insert tiny-test-fw path into sys path
-test_fw_path = os.getenv("TEST_FW_PATH")
-if test_fw_path and test_fw_path not in sys.path:
-    sys.path.insert(0, test_fw_path)
+try:
+    import TinyFW
+except ImportError:
+    # if we want to run test case outside `tiny-test-fw` folder,
+    # we need to insert tiny-test-fw path into sys path
+    test_fw_path = os.getenv("TEST_FW_PATH")
+    if test_fw_path and test_fw_path not in sys.path:
+        sys.path.insert(0, test_fw_path)
+    else:
+        # or try the copy in IDF
+        idf_path = os.getenv("IDF_PATH")
+        tiny_test_path = idf_path + "/tools/tiny-test-fw"
+        if os.path.exists(tiny_test_path):
+            sys.path.insert(0, tiny_test_path)
+    import TinyFW
 
-import TinyFW
 import IDF
 import Utility
 import Env
@@ -45,7 +54,7 @@ EXCEPTION_PATTERN = re.compile(r"(Guru Meditation Error: Core\s+\d panic'ed \([\
 ABORT_PATTERN = re.compile(r"(abort\(\) was called at PC 0x[a-fA-F\d]{8} on core \d)")
 FINISH_PATTERN = re.compile(r"1 Tests (\d) Failures (\d) Ignored")
 END_LIST_STR = r'\r?\nEnter test for running'
-TEST_PATTERN = re.compile(r'\((\d+)\)\s+"([^"]+)" ([^\r]+)\r?\n(' + END_LIST_STR + r')?')
+TEST_PATTERN = re.compile(r'\((\d+)\)\s+"([^"]+)" ([^\r\n]+)\r?\n(' + END_LIST_STR + r')?')
 TEST_SUBMENU_PATTERN = re.compile(r'\s+\((\d+)\)\s+"[^"]+"\r?\n(?=(?=\()|(' + END_LIST_STR + r'))')
 
 SIMPLE_TEST_ID = 0
@@ -365,7 +374,7 @@ class Handler(threading.Thread):
             Utility.console_log("No case detected!", color="orange")
         while not self.finish and not self.force_stop.isSet():
             try:
-                self.dut.expect_any((re.compile('\(' + str(self.child_case_index) + '\)\s"(\w+)"'),
+                self.dut.expect_any((re.compile('\(' + str(self.child_case_index) + '\)\s"(\w+)"'),  # noqa: W605 - regex
                                      get_child_case_name),
                                     (self.WAIT_SIGNAL_PATTERN, device_wait_action),  # wait signal pattern
                                     (self.SEND_SIGNAL_PATTERN, device_send_action),  # send signal pattern
@@ -733,7 +742,7 @@ if __name__ == '__main__':
     test_env = Env.Env(**env_config)
     detect_update_unit_test_info(test_env, extra_data=list_of_dicts, app_bin=args.app_bin)
 
-    for index in range(1, args.repeat+1):
+    for index in range(1, args.repeat + 1):
         if args.repeat > 1:
             Utility.console_log("Repetition {}".format(index), color="green")
         for dic in list_of_dicts:

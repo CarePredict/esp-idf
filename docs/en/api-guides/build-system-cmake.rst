@@ -209,7 +209,7 @@ This example "myProject" contains the following elements:
 
 - Optional "components" directory contains components that are part of the project. A project does not have to contain custom components of this kind, but it can be useful for structuring reusable code or including third party components that aren't part of ESP-IDF.
 
-- "main" directory is a special "pseudo-component" that contains source code for the project itself. "main" is a default name, the CMake variable ``COMPONENT_DIRS`` includes this component but you can modify this variable (or set ``EXTRA_COMPONENT_DIRS`` in the top-level CMakeLists.txt) to look for components in other places. If you have a lot of source files in your project, we recommend grouping most into components instead of putting them all in "main".
+- "main" directory is a special "pseudo-component" that contains source code for the project itself. "main" is a default name, the CMake variable ``COMPONENT_DIRS`` includes this component but you can modify this variable. Alternatively, ``EXTRA_COMPONENT_DIRS`` can be set in the top-level CMakeLists.txt to look for components in other places. See the :ref:`renaming main <rename-main-cmake>` section for more info. If you have a lot of source files in your project, we recommend grouping most into components instead of putting them all in "main".
 
 - "build" directory is where build output is created. This directory is created by ``idf.py`` if it doesn't already exist. CMake configures the project and generates interim build files in this directory. Then, after the main build process is run, this directory will also contain interim object files and libraries as well as final binary output files. This directory is usually not added to source control or distributed with the project source code.
 
@@ -263,7 +263,24 @@ Any paths in these variables can be absolute paths, or set relative to the proje
 
 To set these variables, use the `cmake set command <cmake set_>`_ ie ``set(VARIABLE "VALUE")``. The ``set()`` commands should be placed after the ``cmake_minimum(...)`` line but before the ``include(...)`` line.
 
+.. _rename-main-cmake:
+
+Renaming ``main`` component
+----------------------------
+
+The build system provides special treatment to the ``main`` component. It is a component that gets automatically added to the build provided
+that it is in the expected location, `${PROJECT_PATH}/main`. All other components in the build are also added as its dependencies,
+saving the user from hunting down dependencies and providing a build that works right out of the box. Renaming the ``main`` component
+causes the loss of these behind-the-scences heavy lifting, requiring the user to specify the location of the newly renamed component
+and manually specifying its dependencies. Specifically, the steps to renaming ``main`` are as follows:
+
+1. Rename ``main`` directory.
+2. Set ``EXTRA_COMPONENT_DIRS`` in the project CMakeLists.txt to include the renamed ``main`` directory.
+3. Specify the dependencies in the renamed component's CMakeLists.txt file via ``COMPONENT_REQUIRES`` or ``COMPONENT_PRIV_REQUIRES``.
+
+
 .. _component-directories-cmake:
+
 
 Component CMakeLists Files
 ==========================
@@ -325,12 +342,14 @@ The following variables are set at the project level, but available for use in c
 - ``CONFIG_*``: Each value in the project configuration has a corresponding variable available in make. All names begin with ``CONFIG_``. :doc:`More information here </api-reference/kconfig>`.
 - ``IDF_VER``: Git version of ESP-IDF (produced by ``git describe``)
 - ``IDF_TARGET``: Name of the target for which the project is being built.
-- ``PROJECT_VER``: Project version. 
+- ``PROJECT_VER``: Project version.
 
-* If ``PROJECT_VER`` variable set in project CMakeLists.txt file, its value will be used.
-* Else, if the ``$PROJECT_PATH/version.txt`` exists, its contents will be used as ``PROJECT_VER``.
-* Else, if the project is located inside a Git repository, the output of git describe will be used.
-* Otherwise, ``PROJECT_VER`` will be empty.
+  * If ``PROJECT_VER`` variable set in project CMakeLists.txt file, its value will be used.
+  * Else, if the ``$PROJECT_PATH/version.txt`` exists, its contents will be used as ``PROJECT_VER``.
+  * Else, if the project is located inside a Git repository, the output of git describe will be used.
+  * Otherwise, ``PROJECT_VER`` will be "1".
+
+- ``ESP_PLATFORM``: Set to 1 whenever the ESP-IDF build system is being used.
 
 If you modify any of these variables inside ``CMakeLists.txt`` then this will not prevent other components from building but it may make your component hard to build and/or debug.
 
@@ -885,6 +904,9 @@ import it from other projects. Studying the library's CMakeLists.txt and build s
 
 It is also possible to wrap a third-party library to be used as a component in this manner. For example, the :component:`mbedtls` component is a wrapper for 
 Espressif's fork of `mbedtls <https://github.com/ARMmbed/mbedtls>`_. See its :component_file:`component CMakeLists.txt <mbedtls/CMakeLists.txt>`.
+
+The CMake variable ``ESP_PLATFORM`` is set to 1 whenever the ESP-IDF build system is being used. Tests such as ``if (ESP_PLATFORM)`` can be used in generic CMake code if special IDF-specific logic is required.
+
 
 Using ESP-IDF in Custom CMake Projects
 ======================================
