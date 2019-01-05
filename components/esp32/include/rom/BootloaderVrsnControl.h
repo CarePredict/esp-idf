@@ -10,7 +10,7 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	22
+#define MOTHER_SHIP_ESP_IDF_VRSN0	23
 
 #define BOOT_LOADER_VERSION	1 //__MK__: updated August 30, 2018
 
