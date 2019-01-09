@@ -77,9 +77,20 @@ function(kconfig_process_config)
     set(kconfigs)
     set(kconfigs_projbuild)
 
+    # Components are usually sorted (somewhat) topologically via their dependencies. This extends to the component
+    # paths list. Obtain an alphabetical list in order to present menus also in the same order.
+    set(components ${BUILD_COMPONENTS})
+    list(SORT components)
+
+    foreach(component ${components})
+        list(FIND BUILD_COMPONENTS ${component} idx)
+        list(GET BUILD_COMPONENT_PATHS ${idx} component_path)
+        list(APPEND component_paths ${component_path})
+    endforeach()
+
     # Find Kconfig and Kconfig.projbuild for each component as applicable
     # if any of these change, cmake should rerun
-    foreach(dir ${BUILD_COMPONENT_PATHS})
+    foreach(dir ${component_paths})
         file(GLOB kconfig "${dir}/Kconfig")
         if(kconfig)
             set(kconfigs "${kconfigs} ${kconfig}")
@@ -96,8 +107,8 @@ function(kconfig_process_config)
         set(defaults_arg --defaults "${IDF_SDKCONFIG_DEFAULTS}")
     endif()
 
-    if(EXISTS "${SDKCONFIG_DEFAULTS}.${IDF_TARGET}")
-        list(APPEND defaults_arg --defaults "${SDKCONFIG_DEFAULTS}.${IDF_TARGET}")
+    if(EXISTS "${IDF_SDKCONFIG_DEFAULTS}.${IDF_TARGET}")
+        list(APPEND defaults_arg --defaults "${IDF_SDKCONFIG_DEFAULTS}.${IDF_TARGET}")
     endif()
 
     # Set these in the parent scope, so that they can be written to project_description.json
@@ -135,7 +146,7 @@ function(kconfig_process_config)
         COMMAND ${CMAKE_COMMAND} -E env
         "COMPONENT_KCONFIGS=${kconfigs}"
         "COMPONENT_KCONFIGS_PROJBUILD=${kconfigs_projbuild}"
-        ${IDF_PATH}/tools/kconfig_new/confserver.py --kconfig ${IDF_PATH}/Kconfig --config ${SDKCONFIG}
+        ${PYTHON} ${IDF_PATH}/tools/kconfig_new/confserver.py --kconfig ${IDF_PATH}/Kconfig --config ${SDKCONFIG}
         VERBATIM
         USES_TERMINAL)
 
