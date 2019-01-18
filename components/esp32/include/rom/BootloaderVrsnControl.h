@@ -12,7 +12,7 @@
 
 #define MOTHER_SHIP_ESP_IDF_VRSN0	23
 
-#define BOOT_LOADER_VERSION	1 //__MK__: updated August 30, 2018
+#define BOOT_LOADER_VERSION			2		//__MK__: updated Jan 11, 2019 // Ota roll-back capabilities
 
 #define MAX_RST_CNT_2_TRIGGER_FACTORY_BOOT	100
 #define STRUCT_INTEGRITY_MAGIC_NUM			15
@@ -23,6 +23,13 @@ typedef enum{
 	BUTTON_PUSH,
 	RST_COUNTER_TRIGGER
 }KICK_FACTORY_REASON_TYPE_t;
+
+typedef enum{
+	SELF_TEST_SUCCESS = 0,
+	SELF_TEST_INIT,
+	SELF_TEST_IN_PROGRESS,
+	SELF_TEST_FALILED
+}SELF_TEST_STATE_t;
 
 typedef struct {
 	int RstCnt2TriggerFactory;
@@ -37,7 +44,7 @@ typedef struct {
 	uint8_t RFU_Data3_3;
 	uint8_t RFU_Data3_4;
 
-	uint8_t RFU_Data4_1;
+	uint8_t isSelfTestReq;
 	uint8_t RFU_Data4_2;
 	uint8_t RFU_Data4_3;
 	uint8_t RFU_Data4_4;
