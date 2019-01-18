@@ -238,6 +238,7 @@ build_esp_idf_tests_cmake:
     when: always
     paths:
       - build_examples/*/*/*/build/*.bin
+      - build_examples/*/*/*/sdkconfig
       - build_examples/*/*/*/build/*.elf
       - build_examples/*/*/*/build/*.map
       - build_examples/*/*/*/build/download.config
@@ -270,6 +271,7 @@ build_esp_idf_tests_cmake:
     when: always
     paths:
       - build_examples_cmake/*/*/*/build/*.bin
+      - build_examples_cmake/*/*/*/sdkconfig
       - build_examples_cmake/*/*/*/build/*.elf
       - build_examples_cmake/*/*/*/build/*.map
       - build_examples_cmake/*/*/*/build/download.config
@@ -730,6 +732,23 @@ check_python_style:
   script:
     # run it only under Python 3 (it is very slow under Python 2)
     - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh -p 3.4.8 python -m flake8 --config=$IDF_PATH/.flake8 --output-file=flake8_output.txt --tee --benchmark $IDF_PATH
+
+check_kconfigs:
+  <<: *check_job_template
+  before_script: *do_nothing_before
+  artifacts:
+    when: on_failure
+    paths:
+      - components/*/Kconfig*.new
+      - examples/*/*/*/Kconfig*.new
+      - examples/*/*/*/*/Kconfig*.new
+      - tools/*/Kconfig*.new
+      - tools/*/*/Kconfig*.new
+      - tools/*/*/*/Kconfig*.new
+    expire_in: 1 week
+  script:
+    - ${IDF_PATH}/tools/ci/multirun_with_pyenv.sh ${IDF_PATH}/tools/test_check_kconfigs.py
+    - ${IDF_PATH}/tools/check_kconfigs.py
 
 check_ut_cmake_make:
   stage: check
