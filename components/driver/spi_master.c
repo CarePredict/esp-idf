@@ -380,11 +380,14 @@ esp_err_t spi_bus_free(spi_host_device_t host)
 void spi_get_timing(bool gpio_is_used, int input_delay_ns, int eff_clk, int* dummy_o, int* cycles_remain_o)
 {
     const int apbclk_kHz = APB_CLK_FREQ/1000;
+    //calculate how many apb clocks a period has
     const int apbclk_n = APB_CLK_FREQ/eff_clk;
     const int gpio_delay_ns = gpio_is_used ? 25 : 0;
 
-    //calculate how many apb clocks a period has, the 1 is to compensate in case ``input_delay_ns`` is rounded off.
+    //calculate how many apb clocks the delay is, the 1 is to compensate in case ``input_delay_ns`` is rounded off.
     int apb_period_n = (1 + input_delay_ns + gpio_delay_ns)*apbclk_kHz/1000/1000;
+    if (apb_period_n < 0) apb_period_n = 0;
+
     int dummy_required = apb_period_n/apbclk_n;
 
     int miso_delay = 0;
@@ -406,8 +409,10 @@ int spi_get_freq_limit(bool gpio_is_used, int input_delay_ns)
     const int apbclk_kHz = APB_CLK_FREQ/1000;
     const int gpio_delay_ns = gpio_is_used ? 25 : 0;
 
-    //calculate how many apb clocks a period has, the 1 is to compensate in case ``input_delay_ns`` is rounded off.
+    //calculate how many apb clocks the delay is, the 1 is to compensate in case ``input_delay_ns`` is rounded off.
     int apb_period_n = (1 + input_delay_ns + gpio_delay_ns)*apbclk_kHz/1000/1000;
+    if (apb_period_n < 0) apb_period_n = 0;
+
     return APB_CLK_FREQ/(apb_period_n+1);
 }
 
@@ -866,8 +871,14 @@ static void SPI_MASTER_ISR_ATTR spi_new_trans(spi_device_t *dev, spi_trans_priv_
 
     //SPI iface needs to be configured for a delay in some cases.
     //configure dummy bits
-    host->hw->user.usr_dummy=(dev->cfg.dummy_bits+extra_dummy) ? 1 : 0;
-    host->hw->user1.usr_dummy_cyclelen=dev->cfg.dummy_bits+extra_dummy-1;
+    int base_dummy_bits;
+    if (trans->flags & SPI_TRANS_VARIABLE_DUMMY) {
+        base_dummy_bits = ((spi_transaction_ext_t *)trans)->dummy_bits;
+    } else {
+        base_dummy_bits = dev->cfg.dummy_bits;
+    }
+    host->hw->user.usr_dummy=(base_dummy_bits+extra_dummy) ? 1 : 0;
+    host->hw->user1.usr_dummy_cyclelen=base_dummy_bits+extra_dummy-1;
 
     int miso_long_delay = 0;
     if (dev->clk_cfg.miso_delay<0) {

@@ -130,6 +130,9 @@ static int ssl_read(esp_transport_handle_t t, char *buffer, int len, int timeout
     if (ret < 0) {
         ESP_LOGE(TAG, "esp_tls_conn_read error, errno=%s", strerror(errno));
     }
+    if (ret == 0) {
+        ret = -1;
+    }
     return ret;
 }
 
@@ -150,6 +153,14 @@ static int ssl_destroy(esp_transport_handle_t t)
     esp_transport_close(t);
     free(ssl);
     return 0;
+}
+
+void esp_transport_ssl_enable_global_ca_store(esp_transport_handle_t t)
+{
+    transport_ssl_t *ssl = esp_transport_get_context_data(t);
+    if (t && ssl) {
+        ssl->cfg.use_global_ca_store = true;
+    }
 }
 
 void esp_transport_ssl_set_cert_data(esp_transport_handle_t t, const char *data, int len)

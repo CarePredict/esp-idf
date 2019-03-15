@@ -52,6 +52,10 @@ ESP32 是一套 Wi-Fi (2.4 GHz) 和蓝牙 (4.2) 双模解决方案，集成了�
 4. 通过 USB/串口，监视/调试**应用程序**输出 
 
 
+.. The label below is placeholder to link a new section "Installation Step by Step"
+
+.. _get-started-step-by-step-cmake:
+
 开发板指南
 ========================
 
@@ -341,7 +345,7 @@ Windows Command Prompt
 监视器
 ================
 
-如果要查看 "hello_world" 程序是否真的在运行，输入命令 ``idf.py -p PORT monitor``。这个命令会启动 :doc:`IDF Monitor <idf-monitor>` 程序::
+如果要查看 "hello_world" 程序是否真的在运行，输入命令 ``idf.py -p PORT monitor``。这个命令会启动 :doc:`IDF Monitor <../api-guides/tools/idf-monitor>` 程序::
 
     $ idf.py -p /dev/ttyUSB0 monitor
     Running idf_monitor in directory [...]/esp/hello_world/build
@@ -383,7 +387,7 @@ Windows Command Prompt
 
        idf.py -p PORT flash monitor
 
-有关监视器使用的快捷键和其他详情，请参阅 :doc:`IDF Monitor <idf-monitor>`。
+有关监视器使用的快捷键和其他详情，请参阅 :doc:`IDF Monitor <../api-guides/tools/idf-monitor>`。
 
 有关 ``idf.py`` 的全部命令和选项，请参阅 :ref:`idf.py`。
 
@@ -410,7 +414,7 @@ Windows Command Prompt
     add-idf_path-to-profile
     establish-serial-connection
     eclipse-setup
-    idf-monitor
+    ../api-guides/tools/idf-monitor
     toolchain-setup-scratch
 
 .. _Stable version: https://docs.espressif.com/projects/esp-idf/en/stable/
