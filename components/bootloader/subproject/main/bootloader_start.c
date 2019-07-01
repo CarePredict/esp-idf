@@ -18,6 +18,7 @@
 #include "esp_log.h"
 #include "rom/gpio.h"
 #include "rom/spi_flash.h"
+#include "rom/BootloaderVrsnControl.h"
 #include "bootloader_config.h"
 #include "bootloader_init.h"
 #include "bootloader_utility.h"
@@ -73,6 +74,7 @@ static int selected_boot_partition(const bootloader_state_t *bs)
 {
     int boot_index = bootloader_utility_get_selected_boot_partition(bs);
     if (boot_index == INVALID_INDEX) {
+    	RTC_NO_INIT_DATA_STRUCT->RFU_Data2_1 = INVALID_PARTITION;
         return boot_index; // Unrecoverable failure (not due to corrupt ota data or bad partition contents)
     } else {
         // Factory firmware.

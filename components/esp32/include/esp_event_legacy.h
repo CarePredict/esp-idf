@@ -21,6 +21,7 @@
 #include "esp_err.h"
 #include "esp_wifi_types.h"
 #include "tcpip_adapter.h"
+#include "lwip/dhcp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,7 @@ typedef enum {
     SYSTEM_EVENT_ETH_CONNECTED,            /**< ESP32 ethernet phy link up */
     SYSTEM_EVENT_ETH_DISCONNECTED,         /**< ESP32 ethernet phy link down */
     SYSTEM_EVENT_ETH_GOT_IP,               /**< ESP32 ethernet got IP from connected AP */
+	SYSTEM_EVENT_FAILED_TO_GET_STATIC_IP, /**< CUSTOM event created by carepredict (__MK__) to noitify failure to get static IP*/
     SYSTEM_EVENT_MAX
 } system_event_id_t;
 
@@ -125,12 +127,17 @@ typedef struct {
     ip4_addr_t ip; 
 } system_event_ap_staipassigned_t;
 
+typedef struct {
+	struct dhcp DhcpInfo;
+} Custom_system_event_got_ip_t;
+
 typedef union {
     system_event_sta_connected_t               connected;          /**< ESP32 station connected to AP */
     system_event_sta_disconnected_t            disconnected;       /**< ESP32 station disconnected to AP */
     system_event_sta_scan_done_t               scan_done;          /**< ESP32 station scan (APs) done */
     system_event_sta_authmode_change_t         auth_change;        /**< the auth mode of AP ESP32 station connected to changed */
     system_event_sta_got_ip_t                  got_ip;             /**< ESP32 station got IP, first time got IP or when IP is changed */
+	Custom_system_event_got_ip_t CustomGotIpEventDhcpInfo; /**< Struct carries out the DHCP info from the previous DHCP call */
     system_event_sta_wps_er_pin_t              sta_er_pin;         /**< ESP32 station WPS enrollee mode PIN code received */
     system_event_sta_wps_fail_reason_t         sta_er_fail_reason;/**< ESP32 station WPS enrollee mode failed reason code received */
     system_event_ap_staconnected_t             sta_connected;      /**< a station connected to ESP32 soft-AP */
