@@ -48,6 +48,7 @@
 #include "bootloader_random.h"
 #include "bootloader_config.h"
 #include "bootloader_clock.h"
+#include "bootloader_common.h"
 
 #include "flash_qio_mode.h"
 
@@ -61,7 +62,6 @@ static const char* TAG = "boot";
 static esp_err_t bootloader_main();
 static void print_flash_info(const esp_image_header_t* pfhdr);
 static void update_flash_config(const esp_image_header_t* pfhdr);
-static void vddsdio_configure();
 static void flash_gpio_configure(const esp_image_header_t* pfhdr);
 static void uart_console_configure(void);
 static void wdt_reset_check(void);
@@ -117,7 +117,7 @@ esp_err_t bootloader_init()
 
 static esp_err_t bootloader_main()
 {
-    vddsdio_configure();
+    bootloader_common_vddsdio_configure();
     /* Read and keep flash ID, for further use. */
     g_rom_flashchip.device_id = bootloader_read_flash_id();
     esp_image_header_t fhdr;
@@ -285,21 +285,6 @@ static void print_flash_info(const esp_image_header_t* phdr)
 #endif
 }
 
-static void vddsdio_configure()
-{
-#if CONFIG_BOOTLOADER_VDDSDIO_BOOST_1_9V
-    rtc_vddsdio_config_t cfg = rtc_vddsdio_get_config();
-    if (cfg.enable == 1 && cfg.tieh == RTC_VDDSDIO_TIEH_1_8V) {    // VDDSDIO regulator is enabled @ 1.8V
-        cfg.drefh = 3;
-        cfg.drefm = 3;
-        cfg.drefl = 3;
-        cfg.force = 1;
-        rtc_vddsdio_set_config(cfg);
-        ets_delay_us(10); // wait for regulator to become stable
-    }
-#endif // CONFIG_BOOTLOADER_VDDSDIO_BOOST
-}
-
 #define FLASH_CLK_IO      6
 #define FLASH_CS_IO       11
 #define FLASH_SPIQ_IO     7
@@ -320,10 +305,11 @@ static void IRAM_ATTR flash_gpio_configure(const esp_image_header_t* pfhdr)
     int drv = 2;
     switch (pfhdr->spi_mode) {
         case ESP_IMAGE_SPI_MODE_QIO:
-            spi_cache_dummy = SPI0_R_DIO_DUMMY_CYCLELEN;
+            spi_cache_dummy = SPI0_R_QIO_DUMMY_CYCLELEN;
             break;
         case ESP_IMAGE_SPI_MODE_DIO:
-            spi_cache_dummy = SPI0_R_DIO_DUMMY_CYCLELEN;   //qio 3
+            spi_cache_dummy = SPI0_R_DIO_DUMMY_CYCLELEN;
+            SET_PERI_REG_BITS(SPI_USER1_REG(0), SPI_USR_ADDR_BITLEN_V, SPI0_R_DIO_ADDR_BITSLEN, SPI_USR_ADDR_BITLEN_S);
             break;
         case ESP_IMAGE_SPI_MODE_QOUT:
         case ESP_IMAGE_SPI_MODE_DOUT:
@@ -347,6 +333,10 @@ static void IRAM_ATTR flash_gpio_configure(const esp_image_header_t* pfhdr)
             g_rom_spiflash_dummy_len_plus[1] = FLASH_IO_MATRIX_DUMMY_40M;
             SET_PERI_REG_BITS(SPI_USER1_REG(0), SPI_USR_DUMMY_CYCLELEN_V, spi_cache_dummy + FLASH_IO_MATRIX_DUMMY_40M,
                     SPI_USR_DUMMY_CYCLELEN_S);  //DUMMY
+            break;
+        case ESP_IMAGE_SPI_SPEED_26M:
+        case ESP_IMAGE_SPI_SPEED_20M:
+            SET_PERI_REG_BITS(SPI_USER1_REG(0), SPI_USR_DUMMY_CYCLELEN_V, spi_cache_dummy, SPI_USR_DUMMY_CYCLELEN_S); //DUMMY
             break;
         default:
             break;
