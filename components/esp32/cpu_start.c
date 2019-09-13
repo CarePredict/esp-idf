@@ -72,6 +72,7 @@
 #include "pm_impl.h"
 #include "trax.h"
 #include "esp_ota_ops.h"
+#include "bootloader_common.h"
 
 #define STRINGIFY(s) STRINGIFY2(s)
 #define STRINGIFY2(s) #s
@@ -173,6 +174,8 @@ void IRAM_ATTR call_start_cpu0()
         abort();
 #endif
     }
+# else  // If psram is uninitialized, we need to improve the flash cs timing.
+    bootloader_common_set_flash_cs_timing();
 #endif
 
     ESP_EARLY_LOGI(TAG, "Pro cpu up.");
@@ -390,6 +393,16 @@ void start_cpu0_default(void)
     spi_flash_init();
     /* init default OS-aware flash access critical section */
     spi_flash_guard_set(&g_flash_guard_default_ops);
+
+    uint8_t revision = esp_efuse_get_chip_ver();
+    ESP_LOGI(TAG, "Chip Revision: %d", revision);
+    if (revision > CONFIG_ESP32_REV_MIN) {
+        ESP_LOGW(TAG, "Chip revision is higher than the one configured in menuconfig. Suggest to upgrade it.");
+    } else if(revision != CONFIG_ESP32_REV_MIN) {
+        ESP_LOGE(TAG, "ESP-IDF can't support this chip revision. Modify minimum supported revision in menuconfig");
+        abort();
+    }
+
 #ifdef CONFIG_PM_ENABLE
     esp_pm_impl_init();
 #ifdef CONFIG_PM_DFS_INIT_AUTO
