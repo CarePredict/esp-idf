@@ -25,7 +25,7 @@
 #define BTA_DM_INT_H
 
 #include "common/bt_target.h"
-
+#include "freertos/semphr.h"
 #if (BLE_INCLUDED == TRUE && (defined BTA_GATT_INCLUDED) && (BTA_GATT_INCLUDED == TRUE))
 #include "bta/bta_gatt_api.h"
 #endif
@@ -384,6 +384,7 @@ typedef struct {
     UINT8           new_role;
     BD_ADDR         bd_addr;
     UINT8           hci_status;
+    BOOLEAN         sc_downgrade;
 #if BLE_INCLUDED == TRUE
     UINT16          handle;
     tBT_TRANSPORT   transport;
@@ -425,6 +426,7 @@ typedef struct {
     BD_NAME             bd_name;
     UINT8               features[BTA_FEATURE_BYTES_PER_PAGE * (BTA_EXT_FEATURES_PAGE_MAX + 1)];
     UINT8               pin_length;
+    UINT8               sc_support;
 } tBTA_DM_API_ADD_DEVICE;
 
 /* data type for BTA_DM_API_REMOVE_ACL_EVT */
@@ -1209,6 +1211,7 @@ extern tBTA_DM_DI_CB  bta_dm_di_cb;
 #else
 extern tBTA_DM_DI_CB *bta_dm_di_cb_ptr;
 #define bta_dm_di_cb (*bta_dm_di_cb_ptr)
+SemaphoreHandle_t deinit_semaphore;
 #endif
 
 extern BOOLEAN bta_dm_sm_execute(BT_HDR *p_msg);

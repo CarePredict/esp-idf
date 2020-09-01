@@ -25,6 +25,7 @@
 #include "bootloader_common.h"
 #include "sdkconfig.h"
 #include "esp_image_format.h"
+#include "rom/rtc.h"
 
 static const char* TAG = "boot";
 
@@ -76,7 +77,8 @@ static int selected_boot_partition(const bootloader_state_t *bs)
     if (boot_index == INVALID_INDEX) {
     	RTC_NO_INIT_DATA_STRUCT->RFU_Data2_1 = INVALID_PARTITION;
         return boot_index; // Unrecoverable failure (not due to corrupt ota data or bad partition contents)
-    } else {
+    }
+    if (rtc_get_reset_reason(0) != DEEPSLEEP_RESET) {
         // Factory firmware.
 #ifdef CONFIG_BOOTLOADER_FACTORY_RESET
         if (bootloader_common_check_long_hold_gpio(CONFIG_BOOTLOADER_NUM_PIN_FACTORY_RESET, CONFIG_BOOTLOADER_HOLD_TIME_GPIO) == 1) {
