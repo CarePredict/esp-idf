@@ -16,7 +16,7 @@ int net_buf_id(struct net_buf *buf)
 }
 
 static inline struct net_buf *pool_get_uninit(struct net_buf_pool *pool,
-        u16_t uninit_count)
+                                              u16_t uninit_count)
 {
     struct net_buf *buf = NULL;
 
@@ -493,7 +493,7 @@ void net_buf_unref(struct net_buf *buf)
         pool->uninit_count++;
 #if defined(CONFIG_BLE_MESH_NET_BUF_POOL_USAGE)
         pool->avail_count++;
-        NET_BUF_DBG("%s, pool %p, avail_count %d, uninit_count %d", __func__,
+        NET_BUF_DBG("Unref, pool %p, avail_count %d, uninit_count %d",
                     pool, pool->avail_count, pool->uninit_count);
         NET_BUF_ASSERT(pool->avail_count <= pool->buf_count);
 #endif
@@ -546,7 +546,7 @@ struct net_buf *net_buf_alloc_len(struct net_buf_pool *pool, size_t size,
 
     NET_BUF_ASSERT(pool);
 
-    NET_BUF_DBG("%s, pool %p, uninit_count %d, buf_count %d", __func__,
+    NET_BUF_DBG("Alloc, pool %p, uninit_count %d, buf_count %d",
                 pool, pool->uninit_count, pool->buf_count);
 
     /* We need to lock interrupts temporarily to prevent race conditions
@@ -570,7 +570,7 @@ struct net_buf *net_buf_alloc_len(struct net_buf_pool *pool, size_t size,
 
     bt_mesh_buf_unlock();
 
-    NET_BUF_ERR("%s, Failed to get free buffer", __func__);
+    NET_BUF_ERR("Out of free buffer, pool %p", pool);
     return NULL;
 
 success:
@@ -579,11 +579,11 @@ success:
     if (size) {
         buf->__buf = data_alloc(buf, &size, timeout);
         if (!buf->__buf) {
-            NET_BUF_ERR("%s, Failed to allocate data", __func__);
+            NET_BUF_ERR("Out of data, buf %p", buf);
             return NULL;
         }
     } else {
-        NET_BUF_WARN("%s, Zero data size", __func__);
+        NET_BUF_WARN("Zero data size, buf %p", buf);
         buf->__buf = NULL;
     }
 
@@ -604,8 +604,8 @@ success:
 
 #if defined(CONFIG_BLE_MESH_NET_BUF_LOG)
 struct net_buf *net_buf_alloc_fixed_debug(struct net_buf_pool *pool,
-        s32_t timeout, const char *func,
-        int line)
+                                          s32_t timeout, const char *func,
+                                          int line)
 {
     const struct net_buf_pool_fixed *fixed = pool->alloc->alloc_data;
 
@@ -728,8 +728,8 @@ size_t net_buf_linearize(void *dst, size_t dst_len, struct net_buf *src,
  * the buffer. It assumes that the buffer has at least one fragment.
  */
 size_t net_buf_append_bytes(struct net_buf *buf, size_t len,
-                const void *value, s32_t timeout,
-                net_buf_allocator_cb allocate_cb, void *user_data)
+                            const void *value, s32_t timeout,
+                            net_buf_allocator_cb allocate_cb, void *user_data)
 {
     struct net_buf *frag = net_buf_frag_last(buf);
     size_t added_len = 0U;

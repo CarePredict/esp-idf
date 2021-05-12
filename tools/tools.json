@@ -21,41 +21,41 @@
       "version_regex_replace": "\\1-\\2",
       "versions": [
         {
-          "name": "1.22.0-96-g28523988-5.2.0",
+          "name": "1.22.0-97-gc752ad5d-5.2.0",
           "status": "recommended",
           "win32": {
-            "sha256": "8e2a2e25d4714ae6e4b992be1b1c261caed5b523b0cc0887b6749229c9febbb0",
-            "size": 125810912,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-win32-1.22.0-96-g2852398-5.2.0.zip"
+            "sha256": "80571e5d5a63494f4fa758bb9d8fb882ba4059853a8c412a84d232dc1c1400e6",
+            "size": 125747216,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-win32-1.22.0-97-gc752ad5-5.2.0.zip"
           },
           "win64": {
-            "sha256": "8e2a2e25d4714ae6e4b992be1b1c261caed5b523b0cc0887b6749229c9febbb0",
-            "size": 125810912,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-win32-1.22.0-96-g2852398-5.2.0.zip"
+            "sha256": "80571e5d5a63494f4fa758bb9d8fb882ba4059853a8c412a84d232dc1c1400e6",
+            "size": 125747216,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-win32-1.22.0-97-gc752ad5-5.2.0.zip"
           }
         },
         {
           "linux-amd64": {
-            "sha256": "798a8638f11ad37f41b9640582f869c61ffb4da6d932279fde94a2b636ad2dac",
-            "size": 44211883,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-96-g2852398-5.2.0.tar.gz"
+            "sha256": "96f5f6e7611a0ed1dc47048c54c3113fc5cebffbf0ba90d8bfcd497afc7ef9f3",
+            "size": 44225380,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-97-gc752ad5-5.2.0.tar.gz"
           },
           "linux-armel": {
-            "sha256": "abfe06522f7c3479f6c7434c4bf926c50fa2039362b96abe95fa1f05ec519a9b",
-            "size": 50670980,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux-armel-1.22.0-96-g2852398-5.2.0.tar.gz"
+            "sha256": "d70d550f88448fa476b29fa50ef5502ab497a16ac7fa9ca24c6d0a39bb1e681e",
+            "size": 50657803,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux-armel-1.22.0-97-gc752ad5-5.2.0.tar.gz"
           },
           "linux-i686": {
-            "sha256": "4eea601188aa8f3c3d45d7936ab4c0fabb75b4970dccf7a061de47dba49e377f",
-            "size": 45563578,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux32-1.22.0-96-g2852398-5.2.0.tar.gz"
+            "sha256": "8094a2c30b474e99ce64dd0ba8f310c4614eb3b3cac884a3aea0fd5f565af119",
+            "size": 45575521,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-linux32-1.22.0-97-gc752ad5-5.2.0.tar.gz"
           },
           "macos": {
-            "sha256": "6aeae9547f0cd7e442d1df21821cea8b15d0a6ce349bbd86466e2997b738a99c",
-            "size": 50520203,
-            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-macos-1.22.0-96-g2852398-5.2.0.tar.gz"
+            "sha256": "b1ce39a563ae359cf363fb7d8ee80cb1e5226fda83188203cff60f16f55e33ef",
+            "size": 50525386,
+            "url": "https://dl.espressif.com/dl/xtensa-esp32-elf-macos-1.22.0-97-gc752ad5-5.2.0.tar.gz"
           },
-          "name": "1.22.0-96-g2852398-5.2.0",
+          "name": "1.22.0-97-gc752ad5-5.2.0",
           "status": "recommended"
         }
       ]
@@ -194,26 +194,31 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "e5b5579edffde090e426b4995b346e281843bf84394f8e68c8e41bd1e4c576bd",
-            "size": 1681596,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20190313/openocd-esp32-linux64-0.10.0-esp32-20190313.tar.gz"
+            "sha256": "77a232510625c23489d9bf1b17bdadf56e95acf8f50ef8ebff51477f23c21ef0",
+            "size": 1729401,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20200709/openocd-esp32-linux64-0.10.0-esp32-20200709.tar.gz"
+          },
+          "linux-armel": {
+            "sha256": "b2cc6b7837f3cac23a752a8c43c6e0b19701ee0ec1eca4896833f0e82746062e",
+            "size": 1778274,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20200709/openocd-esp32-armel-0.10.0-esp32-20200709.tar.gz"
           },
           "macos": {
-            "sha256": "09504eea5aa92646a117f16573c95b34e04b4010791a2f8fefcd2bd8c430f081",
-            "size": 1760536,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20190313/openocd-esp32-macos-0.10.0-esp32-20190313.tar.gz"
+            "sha256": "97cf84dd3dfb129a7d4842599870a3b0dbb40b2713d3c5153738c44907e85d6e",
+            "size": 1811755,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20200709/openocd-esp32-macos-0.10.0-esp32-20200709.tar.gz"
           },
-          "name": "v0.10.0-esp32-20190313",
+          "name": "v0.10.0-esp32-20200709",
           "status": "recommended",
           "win32": {
-            "sha256": "b86a7f9f39dfc4d8e289fc819375bbb7a5e9fcb8895805ba2b5faf67b8b25ce2",
-            "size": 2098513,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20190313/openocd-esp32-win32-0.10.0-esp32-20190313.zip"
+            "sha256": "b96b95607ca0c5899427f5b88cda7389da11f53ac857d3d2fe467e571af5137e",
+            "size": 2152463,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20200709/openocd-esp32-win32-0.10.0-esp32-20200709.zip"
           },
           "win64": {
-            "sha256": "b86a7f9f39dfc4d8e289fc819375bbb7a5e9fcb8895805ba2b5faf67b8b25ce2",
-            "size": 2098513,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20190313/openocd-esp32-win32-0.10.0-esp32-20190313.zip"
+            "sha256": "b96b95607ca0c5899427f5b88cda7389da11f53ac857d3d2fe467e571af5137e",
+            "size": 2152463,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.10.0-esp32-20200709/openocd-esp32-win32-0.10.0-esp32-20200709.zip"
           }
         }
       ]

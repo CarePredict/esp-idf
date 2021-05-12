@@ -22,6 +22,7 @@
 #include "settings.h"
 #include "friend.h"
 #include "transport.h"
+#include "foundation.h"
 #include "mesh_common.h"
 #include "proxy_client.h"
 #include "provisioner_prov.h"
@@ -35,24 +36,26 @@ static u16_t node_count;
 
 static int provisioner_remove_node(u16_t index, bool erase);
 
-static void bt_mesh_provisioner_mutex_new(void)
+static inline void bt_mesh_provisioner_mutex_new(void)
 {
     if (!provisioner_lock.mutex) {
         bt_mesh_mutex_create(&provisioner_lock);
     }
 }
 
-static void bt_mesh_provisioner_mutex_free(void)
+#if CONFIG_BLE_MESH_DEINIT
+static inline void bt_mesh_provisioner_mutex_free(void)
 {
     bt_mesh_mutex_free(&provisioner_lock);
 }
+#endif /* CONFIG_BLE_MESH_DEINIT */
 
-static void bt_mesh_provisioner_lock(void)
+static inline void bt_mesh_provisioner_lock(void)
 {
     bt_mesh_mutex_lock(&provisioner_lock);
 }
 
-static void bt_mesh_provisioner_unlock(void)
+static inline void bt_mesh_provisioner_unlock(void)
 {
     bt_mesh_mutex_unlock(&provisioner_lock);
 }
@@ -79,14 +82,9 @@ int bt_mesh_provisioner_net_create(void)
 
     prov = bt_mesh_provisioner_get_prov_info();
     if (!prov) {
-        BT_ERR("%s, NULL provisioning context", __func__);
+        BT_ERR("No provisioning context provided");
         return -EINVAL;
     }
-
-    /* If the device only acts as a Provisioner, need to initialize
-     * each element's address.
-     */
-    bt_mesh_comp_provision(bt_mesh_provisioner_get_primary_elem_addr());
 
     if (bt_mesh.p_sub[0]) {
         /* Provisioner is already enabled (enable -> disable -> enable),
@@ -99,20 +97,20 @@ int bt_mesh_provisioner_net_create(void)
 
     /* Generate the primary netkey */
     if (bt_mesh_rand(p_key, 16)) {
-        BT_ERR("%s, Failed to generate Primary NetKey", __func__);
+        BT_ERR("Failed to generate Primary NetKey");
         return -EIO;
     }
 
     sub = bt_mesh_calloc(sizeof(struct bt_mesh_subnet));
     if (!sub) {
-        BT_ERR("%s, Failed to allocate memory", __func__);
+        BT_ERR("%s, Out of memory", __func__);
         return -ENOMEM;
     }
 
     sub->kr_flag = BLE_MESH_KEY_REFRESH(prov->flags);
     if (sub->kr_flag) {
         if (bt_mesh_net_keys_create(&sub->keys[1], p_key)) {
-            BT_ERR("%s, Failed to generate net-related keys", __func__);
+            BT_ERR("Failed to generate net-related keys");
             bt_mesh_free(sub);
             return -EIO;
         }
@@ -120,7 +118,7 @@ int bt_mesh_provisioner_net_create(void)
     } else {
         /* Currently provisioner only use keys[0] */
         if (bt_mesh_net_keys_create(&sub->keys[0], p_key)) {
-            BT_ERR("%s, Failed to create net-related keys", __func__);
+            BT_ERR("Failed to create net-related keys");
             bt_mesh_free(sub);
             return -EIO;
         }
@@ -157,38 +155,33 @@ int bt_mesh_provisioner_net_create(void)
     }
 
 done:
-    BT_INFO("NetKey Index 0x%03x, NID 0x%02x", sub->net_idx, sub->keys[0].nid);
+    BT_INFO("NetKeyIndex 0x%03x, NID 0x%02x", sub->net_idx, sub->keys[0].nid);
     BT_INFO("NetKey %s", bt_hex(sub->keys[0].net, 16));
 
     return 0;
 }
 
+#if CONFIG_BLE_MESH_DEINIT
 int bt_mesh_provisioner_deinit(bool erase)
 {
     int i;
 
-    for (i = 0; i < CONFIG_BLE_MESH_PROVISIONER_SUBNET_COUNT; i++) {
+    for (i = 0; i < ARRAY_SIZE(bt_mesh.p_sub); i++) {
         if (bt_mesh.p_sub[i]) {
-            if (erase && IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
-                bt_mesh_clear_p_subnet(bt_mesh.p_sub[i]);
-            }
-            bt_mesh_free(bt_mesh.p_sub[i]);
-            bt_mesh.p_sub[i] = NULL;
+            bt_mesh_provisioner_local_net_key_del(bt_mesh.p_sub[i]->net_idx, erase);
         }
     }
 
-    for (i = 0; i < CONFIG_BLE_MESH_PROVISIONER_APP_KEY_COUNT; i++) {
-        if (bt_mesh.p_app_keys[i]) {
-            if (erase && IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
-                bt_mesh_clear_p_app_key(bt_mesh.p_app_keys[i]);
-            }
-            bt_mesh_free(bt_mesh.p_app_keys[i]);
-            bt_mesh.p_app_keys[i] = NULL;
-        }
-    }
+    /* Clear model state that isn't otherwise cleared. E.g. AppKey
+     * binding and model publication is cleared as a consequence
+     * of removing all app keys, however model subscription clearing
+     * must be taken care of here.
+     */
+    bt_mesh_mod_sub_reset(erase);
 
     bt_mesh.p_net_idx_next = 0U;
     bt_mesh.p_app_idx_next = 0U;
+
     if (erase && IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
         bt_mesh_clear_p_net_idx();
         bt_mesh_clear_p_app_idx();
@@ -204,6 +197,7 @@ int bt_mesh_provisioner_deinit(bool erase)
 
     return 0;
 }
+#endif /* CONFIG_BLE_MESH_DEINIT */
 
 bool bt_mesh_provisioner_check_is_addr_dup(u16_t addr, u8_t elem_num, bool comp_with_own)
 {
@@ -216,13 +210,13 @@ bool bt_mesh_provisioner_check_is_addr_dup(u16_t addr, u8_t elem_num, bool comp_
     if (comp_with_own) {
         comp = bt_mesh_comp_get();
         if (!comp) {
-            BT_ERR("NULL composition data");
+            BT_ERR("Invalid composition data");
             return true;
         }
 
         primary_addr = bt_mesh_provisioner_get_primary_elem_addr();
         if (!BLE_MESH_ADDR_IS_UNICAST(primary_addr)) {
-            BT_ERR("%s, Not a unicast address 0x%04x", __func__, primary_addr);
+            BT_ERR("Invalid unicast address 0x%04x", primary_addr);
             return true;
         }
     }
@@ -283,7 +277,7 @@ static int provisioner_store_node(struct bt_mesh_node *node, bool store, u16_t *
         if (mesh_nodes[i] == NULL) {
             mesh_nodes[i] = bt_mesh_calloc(sizeof(struct bt_mesh_node));
             if (!mesh_nodes[i]) {
-                BT_ERR("%s, Failed to allocate memory", __func__);
+                BT_ERR("%s, Out of memory", __func__);
                 bt_mesh_provisioner_unlock();
                 return -ENOMEM;
             }
@@ -318,9 +312,11 @@ int bt_mesh_provisioner_restore_node_info(struct bt_mesh_node *node)
     return provisioner_store_node(node, false, NULL);
 }
 
-int bt_mesh_provisioner_provision(const bt_mesh_addr_t *addr, const u8_t uuid[16], u16_t oob_info,
-                                  u16_t unicast_addr, u8_t element_num, u16_t net_idx, u8_t flags,
-                                  u32_t iv_index, const u8_t dev_key[16], u16_t *index)
+int bt_mesh_provisioner_provision(const bt_mesh_addr_t *addr, const u8_t uuid[16],
+                                  u16_t oob_info, u16_t unicast_addr,
+                                  u8_t element_num, u16_t net_idx,
+                                  u8_t flags, u32_t iv_index,
+                                  const u8_t dev_key[16], u16_t *index)
 {
     struct bt_mesh_node node = {0};
 
@@ -331,10 +327,10 @@ int bt_mesh_provisioner_provision(const bt_mesh_addr_t *addr, const u8_t uuid[16
         return -EINVAL;
     }
 
-    BT_INFO("unicast_addr 0x%04x, elem_num %d, net_idx 0x%04x",
-        unicast_addr, element_num, net_idx);
-    BT_INFO("dev_uuid %s", bt_hex(uuid, 16));
-    BT_INFO("dev_key %s", bt_hex(dev_key, 16));
+    BT_INFO("Unicast addr 0x%04x, element num %d, NetKeyIndex 0x%04x",
+            unicast_addr, element_num, net_idx);
+    BT_INFO("UUID %s", bt_hex(uuid, 16));
+    BT_INFO("DevKey %s", bt_hex(dev_key, 16));
 
     memcpy(node.addr, addr->val, BLE_MESH_ADDR_LEN);
     node.addr_type = addr->type;
@@ -404,7 +400,7 @@ static struct bt_mesh_node *provisioner_find_node_with_uuid(const u8_t uuid[16],
     BT_DBG("%s", __func__);
 
     if (uuid == NULL) {
-        BT_ERR("%s, Invalid device uuid", __func__);
+        BT_ERR("Invalid device uuid");
         return NULL;
     }
 
@@ -441,7 +437,7 @@ int bt_mesh_provisioner_remove_node(const u8_t uuid[16])
 
     node = provisioner_find_node_with_uuid(uuid, &index);
     if (!node) {
-        BT_WARN("%s, Node not exists, uuid %s", __func__, bt_hex(uuid, 16));
+        BT_WARN("Node not found, uuid %s", bt_hex(uuid, 16));
         return -ENODEV;
     }
 
@@ -457,7 +453,7 @@ static struct bt_mesh_node *provisioner_find_node_with_addr(u16_t addr, u16_t *i
     BT_DBG("%s", __func__);
 
     if (!BLE_MESH_ADDR_IS_UNICAST(addr)) {
-        BT_ERR("%s, Not a unicast address 0x%04x", __func__, addr);
+        BT_ERR("Invalid unicast address 0x%04x", addr);
         return NULL;
     }
 
@@ -485,7 +481,7 @@ int bt_mesh_provisioner_restore_node_name(u16_t addr, const char *name)
 
     node = provisioner_find_node_with_addr(addr, NULL);
     if (node == NULL) {
-        BT_ERR("%s, Node not exists, addr 0x%04x", __func__, addr);
+        BT_ERR("Node not found, addr 0x%04x", addr);
         return -ENODEV;
     }
 
@@ -512,7 +508,7 @@ int bt_mesh_provisioner_delete_node_with_uuid(const u8_t uuid[16])
 
     node = provisioner_find_node_with_uuid(uuid, &index);
     if (!node) {
-        BT_WARN("%s, Node not exists, uuid %s", __func__, bt_hex(uuid, 16));
+        BT_WARN("Node not found, uuid %s", bt_hex(uuid, 16));
         return -ENODEV;
     }
 
@@ -527,7 +523,7 @@ int bt_mesh_provisioner_delete_node_with_node_addr(u16_t unicast_addr)
 
     node = provisioner_find_node_with_addr(unicast_addr, &index);
     if (!node) {
-        BT_WARN("%s, Node not exists, addr 0x%04x", __func__, unicast_addr);
+        BT_WARN("Node not found, addr 0x%04x", unicast_addr);
         return -ENODEV;
     }
 
@@ -672,24 +668,24 @@ static int store_node_comp_data(u16_t addr, const u8_t *data, u16_t length, bool
     struct bt_mesh_node *node = NULL;
 
     if (!BLE_MESH_ADDR_IS_UNICAST(addr)) {
-        BT_ERR("%s, Not a unicast address 0x%04x", __func__, addr);
+        BT_ERR("Invalid unicast address 0x%04x", addr);
         return -EINVAL;
     }
 
     if (data == NULL || (length % 2) || length < COMP_DATA_PAGE_0_MIN_LEN) {
-        BT_ERR("%s, Invalid composition data", __func__);
+        BT_ERR("Invalid composition data");
         return -EINVAL;
     }
 
     node = provisioner_find_node_with_addr(addr, NULL);
     if (node == NULL) {
-        BT_ERR("%s, Node not exists, addr 0x%04x", __func__, addr);
+        BT_ERR("Node not found, addr 0x%04x", addr);
         return -ENODEV;
     }
 
     node->comp_data = bt_mesh_calloc(length);
     if (node->comp_data == NULL) {
-        BT_ERR("%s, Failed to allocate memory", __func__);
+        BT_ERR("%s, Out of memory", __func__);
         return -ENOMEM;
     }
 
@@ -791,7 +787,7 @@ const u8_t *bt_mesh_provisioner_dev_key_get(u16_t dst)
     BT_DBG("%s", __func__);
 
     if (!BLE_MESH_ADDR_IS_UNICAST(dst)) {
-        BT_ERR("%s, Not a unicast address 0x%04x", __func__, dst);
+        BT_ERR("Invalid unicast address 0x%04x", dst);
         return NULL;
     }
 
@@ -947,7 +943,8 @@ static int provisioner_check_net_key_full(void)
     return -ENOMEM;
 }
 
-int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx, u16_t *app_idx)
+int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16],
+                                          u16_t net_idx, u16_t *app_idx)
 {
     struct bt_mesh_app_keys *keys = NULL;
     struct bt_mesh_app_key *key = NULL;
@@ -955,7 +952,7 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
     int add = -1;
 
     if (bt_mesh.p_app_idx_next >= 0x1000) {
-        BT_ERR("No AppKey Index available");
+        BT_ERR("No AppKeyIndex available");
         return -EIO;
     }
 
@@ -966,19 +963,19 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
 
     /* Check if the same application key already exists */
     if (provisioner_check_app_key(app_key, app_idx)) {
-        BT_WARN("AppKey exists, AppKey Index updated");
+        BT_WARN("AppKey exists, AppKeyIndex updated");
         return 0;
     }
 
     /* Check if the net_idx exists */
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return -ENODEV;
     }
 
     /* Check if the same app_idx already exists */
     if (provisioner_check_app_idx(*app_idx, true)) {
-        BT_ERR("%s, AppKey Index 0x%03x exists", __func__, *app_idx);
+        BT_ERR("Invalid AppKeyIndex 0x%04x", *app_idx);
         return -EEXIST;
     }
 
@@ -999,13 +996,13 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
 
     key = bt_mesh_calloc(sizeof(struct bt_mesh_app_key));
     if (!key) {
-        BT_ERR("%s, Failed to allocate memory", __func__);
+        BT_ERR("%s, Out of memory", __func__);
         return -ENOMEM;
     }
 
     keys = &key->keys[0];
     if (bt_mesh_app_id(p_key, &keys->id)) {
-        BT_ERR("%s, Failed to generate AID", __func__);
+        BT_ERR("Failed to generate AID");
         bt_mesh_free(key);
         return -EIO;
     }
@@ -1020,7 +1017,7 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
             if (provisioner_check_app_idx(key->app_idx, true)) {
                 key->app_idx = (++bt_mesh.p_app_idx_next);
                 if (key->app_idx >= 0x1000) {
-                    BT_ERR("No AppKey Index available");
+                    BT_ERR("No AppKeyIndex available");
                     bt_mesh_free(key);
                     return -EIO;
                 }
@@ -1029,6 +1026,7 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
             }
         }
         *app_idx = key->app_idx;
+        bt_mesh.p_app_idx_next++;
     }
     key->updated = false;
 
@@ -1042,13 +1040,14 @@ int bt_mesh_provisioner_local_app_key_add(const u8_t app_key[16], u16_t net_idx,
     return 0;
 }
 
-int bt_mesh_provisioner_local_app_key_update(const u8_t app_key[16], u16_t net_idx, u16_t app_idx)
+int bt_mesh_provisioner_local_app_key_update(const u8_t app_key[16],
+                                             u16_t net_idx, u16_t app_idx)
 {
     struct bt_mesh_app_keys *keys = NULL;
     struct bt_mesh_app_key *key = NULL;
 
     if (app_key == NULL) {
-        BT_ERR("%s, Invalid AppKey", __func__);
+        BT_ERR("Invalid AppKey");
         return -EINVAL;
     }
 
@@ -1056,19 +1055,19 @@ int bt_mesh_provisioner_local_app_key_update(const u8_t app_key[16], u16_t net_i
 
     /* Check if the net_idx exists */
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return -ENODEV;
     }
 
     key = bt_mesh_provisioner_app_key_find(app_idx);
     if (key == NULL) {
-        BT_ERR("%s, AppKey Index 0x%03x not exists", __func__, app_idx);
+        BT_ERR("Invalid AppKeyIndex 0x%04x", app_idx);
         return -ENODEV;
     }
 
     keys = &key->keys[0];
     if (bt_mesh_app_id(app_key, &keys->id)) {
-        BT_ERR("%s, Failed to generate AID", __func__);
+        BT_ERR("Failed to generate AID");
         return -EIO;
     }
 
@@ -1093,12 +1092,12 @@ const u8_t *bt_mesh_provisioner_local_app_key_get(u16_t net_idx, u16_t app_idx)
     BT_DBG("%s", __func__);
 
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return NULL;
     }
 
     if (provisioner_check_app_idx(app_idx, false)) {
-        BT_ERR("%s, AppKey Index 0x%03x not exists", __func__, app_idx);
+        BT_ERR("Invalid AppKeyIndex 0x%04x", app_idx);
         return NULL;
     }
 
@@ -1116,7 +1115,7 @@ const u8_t *bt_mesh_provisioner_local_app_key_get(u16_t net_idx, u16_t app_idx)
     return NULL;
 }
 
-static void model_pub_clear(struct bt_mesh_model *model)
+static void model_pub_clear(struct bt_mesh_model *model, bool store)
 {
     if (!model->pub) {
         return;
@@ -1138,14 +1137,14 @@ static void model_pub_clear(struct bt_mesh_model *model)
         k_delayed_work_cancel(&model->pub->timer);
     }
 
-    if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
+    if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS) && store) {
         bt_mesh_store_mod_pub(model);
     }
 
     return;
 }
 
-static void model_unbind(struct bt_mesh_model *model, u16_t app_idx)
+static void model_unbind(struct bt_mesh_model *model, u16_t app_idx, bool store)
 {
     int i;
 
@@ -1158,36 +1157,42 @@ static void model_unbind(struct bt_mesh_model *model, u16_t app_idx)
 
         model->keys[i] = BLE_MESH_KEY_UNUSED;
 
-        if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
+        if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS) && store) {
             bt_mesh_store_mod_bind(model);
         }
 
-        model_pub_clear(model);
+        model_pub_clear(model, store);
     }
 }
+
+struct unbind_data {
+    u16_t app_idx;
+    bool store;
+};
 
 static void _model_unbind(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
                           bool vnd, bool primary, void *user_data)
 {
-    u16_t app_idx = *(u16_t *)user_data;
+    struct unbind_data *data = user_data;
 
-    model_unbind(mod, app_idx);
+    model_unbind(mod, data->app_idx, data->store);
 }
 
-int bt_mesh_provisioner_local_app_key_delete(u16_t net_idx, u16_t app_idx)
+int bt_mesh_provisioner_local_app_key_del(u16_t net_idx, u16_t app_idx, bool store)
 {
+    struct unbind_data data = { .app_idx = app_idx, .store = store };
     struct bt_mesh_app_key *key = NULL;
     int i;
 
     BT_DBG("%s", __func__);
 
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return -ENODEV;
     }
 
     if (provisioner_check_app_idx(app_idx, false)) {
-        BT_ERR("%s, AppKey Index 0x%03x not exists", __func__, app_idx);
+        BT_ERR("Invalid AppKeyIndex 0x%04x", app_idx);
         return -ENODEV;
     }
 
@@ -1196,10 +1201,10 @@ int bt_mesh_provisioner_local_app_key_delete(u16_t net_idx, u16_t app_idx)
         if (key && key->net_idx == net_idx &&
                 key->app_idx == app_idx) {
             /* Remove the AppKey from the models if they are bound with it */
-            bt_mesh_model_foreach(_model_unbind, &app_idx);
+            bt_mesh_model_foreach(_model_unbind, &data);
 
-            if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
-                bt_mesh_clear_p_app_key(key);
+            if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS) && store) {
+                bt_mesh_clear_p_app_key(app_idx);
             }
 
             bt_mesh_free(bt_mesh.p_app_keys[i]);
@@ -1219,7 +1224,7 @@ int bt_mesh_provisioner_local_net_key_add(const u8_t net_key[16], u16_t *net_idx
     int add = -1;
 
     if (bt_mesh.p_net_idx_next >= 0x1000) {
-        BT_ERR("No NetKey Index available");
+        BT_ERR("No NetKeyIndex available");
         return -EIO;
     }
 
@@ -1230,13 +1235,13 @@ int bt_mesh_provisioner_local_net_key_add(const u8_t net_key[16], u16_t *net_idx
 
     /* Check if the same network key already exists */
     if (provisioner_check_net_key(net_key, net_idx)) {
-        BT_WARN("NetKey exists, NetKey Index updated");
+        BT_WARN("NetKey exists, NetKeyIndex updated");
         return 0;
     }
 
     /* Check if the same net_idx already exists */
     if (provisioner_check_net_idx(*net_idx, true)) {
-        BT_ERR("%s, NetKey Index 0x%03x exists", __func__, *net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", *net_idx);
         return -EEXIST;
     }
 
@@ -1257,12 +1262,12 @@ int bt_mesh_provisioner_local_net_key_add(const u8_t net_key[16], u16_t *net_idx
 
     sub = bt_mesh_calloc(sizeof(struct bt_mesh_subnet));
     if (!sub) {
-        BT_ERR("%s, Failed to allocate memory", __func__);
+        BT_ERR("%s, Out of memory", __func__);
         return -ENOMEM;
     }
 
     if (bt_mesh_net_keys_create(&sub->keys[0], p_key)) {
-        BT_ERR("%s, Failed to generate NID", __func__);
+        BT_ERR("Failed to generate NID");
         bt_mesh_free(sub);
         return -EIO;
     }
@@ -1275,7 +1280,7 @@ int bt_mesh_provisioner_local_net_key_add(const u8_t net_key[16], u16_t *net_idx
             if (provisioner_check_net_idx(sub->net_idx, true)) {
                 sub->net_idx = (++bt_mesh.p_net_idx_next);
                 if (sub->net_idx >= 0x1000) {
-                    BT_ERR("No NetKey Index available");
+                    BT_ERR("No NetKeyIndex available");
                     bt_mesh_free(sub);
                     return -EIO;
                 }
@@ -1284,6 +1289,7 @@ int bt_mesh_provisioner_local_net_key_add(const u8_t net_key[16], u16_t *net_idx
             }
         }
         *net_idx = sub->net_idx;
+        bt_mesh.p_net_idx_next++;
     }
     sub->kr_phase = BLE_MESH_KR_NORMAL;
     sub->kr_flag  = false;
@@ -1305,7 +1311,7 @@ int bt_mesh_provisioner_local_net_key_update(const u8_t net_key[16], u16_t net_i
     int err = 0;
 
     if (net_key == NULL) {
-        BT_ERR("%s, Invalid NetKey", __func__);
+        BT_ERR("Invalid NetKey");
         return -EINVAL;
     }
 
@@ -1313,13 +1319,13 @@ int bt_mesh_provisioner_local_net_key_update(const u8_t net_key[16], u16_t net_i
 
     sub = bt_mesh_provisioner_subnet_get(net_idx);
     if (sub == NULL) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return -ENODEV;
     }
 
     err = bt_mesh_net_keys_create(&sub->keys[0], net_key);
     if (err) {
-        BT_ERR("%s, Failed to generate NID", __func__);
+        BT_ERR("Failed to generate NID");
         return -EIO;
     }
 
@@ -1332,7 +1338,7 @@ int bt_mesh_provisioner_local_net_key_update(const u8_t net_key[16], u16_t net_i
 
     err = bt_mesh_net_beacon_update(sub);
     if (err) {
-        BT_ERR("%s, Failed to update secure beacon", __func__);
+        BT_ERR("Failed to update secure beacon");
         return -EIO;
     }
 
@@ -1351,7 +1357,7 @@ const u8_t *bt_mesh_provisioner_local_net_key_get(u16_t net_idx)
     BT_DBG("%s", __func__);
 
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return NULL;
     }
 
@@ -1368,7 +1374,7 @@ const u8_t *bt_mesh_provisioner_local_net_key_get(u16_t net_idx)
     return NULL;
 }
 
-int bt_mesh_provisioner_local_net_key_delete(u16_t net_idx)
+int bt_mesh_provisioner_local_net_key_del(u16_t net_idx, bool store)
 {
     struct bt_mesh_subnet *sub = NULL;
     int i, j;
@@ -1376,7 +1382,7 @@ int bt_mesh_provisioner_local_net_key_delete(u16_t net_idx)
     BT_DBG("%s", __func__);
 
     if (provisioner_check_net_idx(net_idx, false)) {
-        BT_ERR("%s, NetKey Index 0x%03x not exists", __func__, net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", net_idx);
         return -ENODEV;
     }
 
@@ -1386,13 +1392,14 @@ int bt_mesh_provisioner_local_net_key_delete(u16_t net_idx)
             /* Delete any app keys bound to this NetKey index */
             for (j = 0; j < ARRAY_SIZE(bt_mesh.p_app_keys); j++) {
                 struct bt_mesh_app_key *key = bt_mesh.p_app_keys[j];
+
                 if (key && key->net_idx == sub->net_idx) {
-                    bt_mesh_provisioner_local_app_key_delete(key->net_idx, key->app_idx);
+                    bt_mesh_provisioner_local_app_key_del(key->net_idx, key->app_idx, store);
                 }
             }
 
-            if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS)) {
-                bt_mesh_clear_p_subnet(sub);
+            if (IS_ENABLED(CONFIG_BLE_MESH_SETTINGS) && store) {
+                bt_mesh_clear_p_subnet(net_idx);
             }
 
             bt_mesh_free(bt_mesh.p_sub[i]);
@@ -1406,7 +1413,7 @@ int bt_mesh_provisioner_local_net_key_delete(u16_t net_idx)
 }
 
 int bt_mesh_provisioner_bind_local_model_app_idx(u16_t elem_addr, u16_t mod_id,
-        u16_t cid, u16_t app_idx)
+                                                 u16_t cid, u16_t app_idx)
 {
     struct bt_mesh_model *model = NULL;
     struct bt_mesh_elem *elem = NULL;
@@ -1414,7 +1421,7 @@ int bt_mesh_provisioner_bind_local_model_app_idx(u16_t elem_addr, u16_t mod_id,
 
     elem = bt_mesh_elem_find(elem_addr);
     if (!elem) {
-        BT_ERR("%s, No element found, addr 0x%04x", __func__, elem_addr);
+        BT_ERR("No element found, addr 0x%04x", elem_addr);
         return -ENODEV;
     }
 
@@ -1424,12 +1431,12 @@ int bt_mesh_provisioner_bind_local_model_app_idx(u16_t elem_addr, u16_t mod_id,
         model = bt_mesh_model_find_vnd(elem, cid, mod_id);
     }
     if (!model) {
-        BT_ERR("%s, No model is found", __func__);
+        BT_ERR("No model found, model id 0x%04x, cid 0x%04x", mod_id, cid);
         return -ENODEV;
     }
 
     if (provisioner_check_app_idx(app_idx, false)) {
-        BT_ERR("%s, AppKey Index 0x%03x not exists", __func__, app_idx);
+        BT_ERR("Invalid AppKeyIndex 0x%04x", app_idx);
         return -ENODEV;
     }
 
@@ -1464,7 +1471,7 @@ int bt_mesh_print_local_composition_data(void)
 
     comp = bt_mesh_comp_get();
     if (!comp) {
-        BT_ERR("%s, NULL composition data", __func__);
+        BT_ERR("Invalid composition data");
         return -EINVAL;
     }
 
@@ -1502,33 +1509,33 @@ int bt_mesh_provisioner_store_node_info(struct bt_mesh_node *node)
     }
 
     if (!BLE_MESH_ADDR_IS_UNICAST(node->unicast_addr)) {
-        BT_ERR("%s, Not a unicast address 0x%04x", __func__, node->unicast_addr);
+        BT_ERR("Invalid unicast address 0x%04x", node->unicast_addr);
         return -EINVAL;
     }
 
     if (node->element_num == 0) {
-        BT_ERR("%s, Invalid element count %d", __func__, node->element_num);
+        BT_ERR("Invalid element count %d", node->element_num);
         return -EINVAL;
     }
 
     if (bt_mesh_provisioner_check_is_addr_dup(node->unicast_addr, node->element_num, true)) {
-        BT_ERR("%s, Unicast address 0x%04x is duplicated", __func__, node->unicast_addr);
+        BT_ERR("Duplicate unicast address 0x%04x", node->unicast_addr);
         return -EINVAL;
     }
 
     if (node->unicast_addr + node->element_num - 1 > 0x7FFF) {
-        BT_ERR("%s, Not enough unicast address for the node", __func__);
+        BT_ERR("Not enough unicast address for the node");
         return -EIO;
     }
 
     if (bt_mesh_provisioner_net_key_get(node->net_idx) == NULL) {
-        BT_ERR("%s, Invalid NetKey Index 0x%03x", __func__, node->net_idx);
+        BT_ERR("Invalid NetKeyIndex 0x%04x", node->net_idx);
         return -EINVAL;
     }
 
     err = provisioner_store_node(node, true, NULL);
     if (err) {
-        BT_ERR("%s, Failed to store node info", __func__);
+        BT_ERR("Failed to store node info");
         return err;
     }
 
@@ -1536,5 +1543,236 @@ int bt_mesh_provisioner_store_node_info(struct bt_mesh_node *node)
     return 0;
 }
 #endif /* CONFIG_BLE_MESH_TEST_AUTO_ENTER_NETWORK */
+
+#if CONFIG_BLE_MESH_PROVISIONER_RECV_HB
+
+#define HEARTBEAT_FILTER_ACCEPTLIST     0x00
+#define HEARTBEAT_FILTER_REJECTLIST     0x01
+
+#define HEARTBEAT_FILTER_ADD            0x00
+#define HEARTBEAT_FILTER_REMOVE         0x01
+
+#define HEARTBEAT_FILTER_WITH_SRC       BIT(0)
+#define HEARTBEAT_FILTER_WITH_DST       BIT(1)
+#define HEARTBEAT_FILTER_WITH_BOTH      (BIT(1) | BIT(0))
+
+static struct heartbeat_recv {
+    struct heartbeat_filter {
+        u8_t  type; /* Indicate if using src or dst or both to filter heartbeat messages */
+        u16_t src;  /* Heartbeat source address (unicast address) */
+        u16_t dst;  /* Heartbeat destination address (unicast address or group address) */
+    } filter[CONFIG_BLE_MESH_PROVISIONER_RECV_HB_FILTER_SIZE];
+    u8_t  type;     /* Heartbeat filter type */
+    bt_mesh_heartbeat_recv_cb_t cb; /* Heartbeat receive callback */
+} hb_rx;
+
+int bt_mesh_provisioner_recv_heartbeat(bt_mesh_heartbeat_recv_cb_t cb)
+{
+    memset(&hb_rx, 0, sizeof(hb_rx));
+
+    /* Start with an empty rejectlist, which means all heartbeat messages will be reported */
+    hb_rx.type = HEARTBEAT_FILTER_REJECTLIST;
+    hb_rx.cb = cb;
+
+    return 0;
+}
+
+int bt_mesh_provisioner_set_heartbeat_filter_type(u8_t type)
+{
+    if (type > HEARTBEAT_FILTER_REJECTLIST) {
+        BT_ERR("Invalid heartbeat filter type 0x%02x", type);
+        return -EINVAL;
+    }
+
+    /* If the heartbeat filter type is different with previous one,
+     * clear the existing filter entries.
+     */
+    if (hb_rx.type != type) {
+        memset(&hb_rx, 0, offsetof(struct heartbeat_recv, cb));
+        hb_rx.type = type;
+    }
+
+    return 0;
+}
+
+static inline u8_t get_filter_addr_type(u16_t src, u16_t dst)
+{
+    if (BLE_MESH_ADDR_IS_UNICAST(src)) {
+        if (BLE_MESH_ADDR_IS_UNICAST(dst) || BLE_MESH_ADDR_IS_GROUP(dst)) {
+            return HEARTBEAT_FILTER_WITH_BOTH;
+        } else {
+            return HEARTBEAT_FILTER_WITH_SRC;
+        }
+    } else {
+        return HEARTBEAT_FILTER_WITH_DST;
+    }
+}
+
+static int hb_filter_alloc(u16_t src, u16_t dst)
+{
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(hb_rx.filter); i++) {
+        struct heartbeat_filter *filter = &hb_rx.filter[i];
+
+        if (filter->src == BLE_MESH_ADDR_UNASSIGNED &&
+            filter->dst == BLE_MESH_ADDR_UNASSIGNED) {
+            filter->type = get_filter_addr_type(src, dst);
+            filter->src = src;
+            filter->dst = dst;
+            return 0;
+        }
+    }
+
+    BT_ERR("Heartbeat filter is full!");
+    return -ENOMEM;
+}
+
+static int hb_filter_add(u16_t src, u16_t dst)
+{
+    int i;
+
+    if (!BLE_MESH_ADDR_IS_UNICAST(src) &&
+        !BLE_MESH_ADDR_IS_UNICAST(dst) && !BLE_MESH_ADDR_IS_GROUP(dst)) {
+        BT_ERR("Invalid filter address, src 0x%04x, dst 0x%04x", src, dst);
+        return -EINVAL;
+    }
+
+    /* Check if filter entries with the same src or dst exist. */
+    for (i = 0; i < ARRAY_SIZE(hb_rx.filter); i++) {
+        struct heartbeat_filter *filter = &hb_rx.filter[i];
+
+        if ((BLE_MESH_ADDR_IS_UNICAST(src) && filter->src == src) ||
+            ((BLE_MESH_ADDR_IS_UNICAST(dst) || BLE_MESH_ADDR_IS_GROUP(dst)) &&
+            filter->dst == dst)) {
+            memset(filter, 0, sizeof(struct heartbeat_filter));
+        }
+    }
+
+    return hb_filter_alloc(src, dst);
+}
+
+static int hb_filter_remove(u16_t src, u16_t dst)
+{
+    int i;
+
+    if (!BLE_MESH_ADDR_IS_UNICAST(src) &&
+        !BLE_MESH_ADDR_IS_UNICAST(dst) && !BLE_MESH_ADDR_IS_GROUP(dst)) {
+        BT_ERR("Invalid filter address, src 0x%04x, dst 0x%04x", src, dst);
+        return -EINVAL;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(hb_rx.filter); i++) {
+        struct heartbeat_filter *filter = &hb_rx.filter[i];
+
+        if ((BLE_MESH_ADDR_IS_UNICAST(src) && filter->src == src) ||
+            ((BLE_MESH_ADDR_IS_UNICAST(dst) || BLE_MESH_ADDR_IS_GROUP(dst)) &&
+            filter->dst == dst)) {
+            memset(filter, 0, sizeof(struct heartbeat_filter));
+        }
+    }
+
+    return 0;
+}
+
+int bt_mesh_provisioner_set_heartbeat_filter_info(u8_t op, u16_t src, u16_t dst)
+{
+    switch (op) {
+    case HEARTBEAT_FILTER_ADD:
+        return hb_filter_add(src, dst);
+    case HEARTBEAT_FILTER_REMOVE:
+        return hb_filter_remove(src, dst);
+    default:
+        BT_ERR("Invalid heartbeat filter opcode 0x%02x", op);
+        return -EINVAL;
+    }
+}
+
+static bool filter_with_rejectlist(struct heartbeat_filter *filter,
+                                   u16_t hb_src, u16_t hb_dst)
+{
+    switch (filter->type) {
+    case HEARTBEAT_FILTER_WITH_SRC:
+        if (hb_src == filter->src) {
+            return true;
+        }
+        break;
+    case HEARTBEAT_FILTER_WITH_DST:
+        if (hb_dst == filter->dst) {
+            return true;
+        }
+        break;
+    case HEARTBEAT_FILTER_WITH_BOTH:
+        if (hb_src == filter->src && hb_dst == filter->dst) {
+            return true;
+        }
+        break;
+    default:
+        BT_WARN("Unknown filter addr type 0x%02x", filter->type);
+        break;
+    }
+
+    return false;
+}
+
+static bool filter_with_acceptlist(struct heartbeat_filter *filter,
+                                   u16_t hb_src, u16_t hb_dst)
+{
+    switch (filter->type) {
+    case HEARTBEAT_FILTER_WITH_SRC:
+        if (hb_src == filter->src) {
+            return false;
+        }
+        break;
+    case HEARTBEAT_FILTER_WITH_DST:
+        if (hb_dst == filter->dst) {
+            return false;
+        }
+        break;
+    case HEARTBEAT_FILTER_WITH_BOTH:
+        if (hb_src == filter->src && hb_dst == filter->dst) {
+            return false;
+        }
+        break;
+    default:
+        BT_WARN("Unknown filter addr type 0x%02x", filter->type);
+        return false;
+    }
+
+    return true;
+}
+
+void bt_mesh_provisioner_heartbeat(u16_t hb_src, u16_t hb_dst,
+                                   u8_t init_ttl, u8_t rx_ttl,
+                                   u8_t hops, u16_t feat, s8_t rssi)
+{
+    int i;
+
+    if (hb_rx.cb == NULL) {
+        BT_DBG("Receiving heartbeat is not enabled");
+        return;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(hb_rx.filter); i++) {
+        struct heartbeat_filter *filter = &hb_rx.filter[i];
+
+        if (hb_rx.type == HEARTBEAT_FILTER_REJECTLIST) {
+            if (filter_with_rejectlist(filter, hb_src, hb_dst)) {
+                BT_DBG("Filtered by rejectlist, src 0x%04x, dst 0x%04x", hb_src, hb_dst);
+                return;
+            }
+        } else {
+            if (filter_with_acceptlist(filter, hb_src, hb_dst)) {
+                BT_DBG("Filtered by acceptlist, src 0x%04x, dst 0x%04x", hb_src, hb_dst);
+                return;
+            }
+        }
+    }
+
+    if (hb_rx.cb) {
+        hb_rx.cb(hb_src, hb_dst, init_ttl, rx_ttl, hops, feat, rssi);
+    }
+}
+#endif /* CONFIG_BLE_MESH_PROVISIONER_RECV_HB */
 
 #endif /* CONFIG_BLE_MESH_PROVISIONER */

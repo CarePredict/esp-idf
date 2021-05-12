@@ -2257,7 +2257,7 @@ tBTM_STATUS btm_sec_l2cap_access_req (BD_ADDR bd_addr, UINT16 psm, UINT16 handle
             }
         } else if (!(BTM_SM4_KNOWN & p_dev_rec->sm4)) {
             /* the remote features are not known yet */
-            BTM_TRACE_DEBUG("%s: (%s) remote features unknown!!sec_flags:0x%02x\n", __FUNCTION__,
+            BTM_TRACE_ERROR("%s: (%s) remote features unknown!!sec_flags:0x%02x\n", __FUNCTION__,
                             (is_originator) ? "initiator" : "acceptor", p_dev_rec->sec_flags);
 
             p_dev_rec->sm4 |= BTM_SM4_REQ_PEND;
@@ -4065,7 +4065,7 @@ void btm_sec_encrypt_change (UINT16 handle, UINT8 status, UINT8 encr_enable)
                 p_dev_rec->sec_flags |= BTM_SEC_16_DIGIT_PIN_AUTHED;
             }
         } else {
-            p_dev_rec->sec_flags |= (BTM_SEC_LE_AUTHENTICATED | BTM_SEC_LE_ENCRYPTED);
+            p_dev_rec->sec_flags |= BTM_SEC_LE_ENCRYPTED;
         }
     }
 
@@ -6258,3 +6258,39 @@ void btm_sec_handle_remote_legacy_auth_cmp(UINT16 handle)
 }
 #endif /// (CLASSIC_BT_INCLUDED == TRUE)
 #endif  ///SMP_INCLUDED == TRUE
+
+/******************************************************************************
+ **
+ ** Function         btm_sec_dev_authorization
+ **
+ ** Description      This function is used to authorize a specified device(BLE)
+ **
+ ******************************************************************************
+ */
+#if (BLE_INCLUDED == TRUE)
+BOOLEAN btm_sec_dev_authorization(BD_ADDR bd_addr, BOOLEAN authorized)
+{
+#if (SMP_INCLUDED == TRUE)
+    UINT8  sec_flag = 0;
+    tBTM_SEC_DEV_REC *p_dev_rec = btm_find_dev(bd_addr);
+    if (p_dev_rec) {
+        sec_flag = (UINT8)(p_dev_rec->sec_flags >> 8);
+        if (!(sec_flag & BTM_SEC_LINK_KEY_AUTHED)) {
+            BTM_TRACE_ERROR("Authorized should after successful Authentication(MITM protection)\n");
+            return FALSE;
+        }
+
+        if (authorized) {
+            p_dev_rec->sec_flags |= BTM_SEC_LE_AUTHORIZATION;
+        } else {
+            p_dev_rec->sec_flags &= ~(BTM_SEC_LE_AUTHORIZATION);
+        }
+    } else {
+        BTM_TRACE_ERROR("%s, can't find device\n", __func__);
+        return FALSE;
+    }
+    return TRUE;
+#endif  ///SMP_INCLUDED == TRUE
+    return FALSE;
+}
+#endif  /// BLE_INCLUDE == TRUE
