@@ -10,7 +10,7 @@
 #include "esp_attr.h"
 #include "sdkconfig.h"
 
-#define MOTHER_SHIP_ESP_IDF_VRSN0	29
+#define MOTHER_SHIP_ESP_IDF_VRSN0	30
 
 #define BOOT_LOADER_VERSION			3		//__MK__: updated July 01, 2019 // Ota roll-back capabilities + idf3.3
 
